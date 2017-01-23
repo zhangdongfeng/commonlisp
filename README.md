@@ -2,4 +2,4 @@
 my common lisp projects
 
 clone to:
-~/quicklisp/local-projects
+git clone xxx ~/quicklisp/local-projects
