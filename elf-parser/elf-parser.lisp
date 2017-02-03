@@ -92,6 +92,9 @@
 
 
 (defmacro define-accessor (&rest methods)
+  "define trivial accessor functions,
+methods: list function spec
+first is the function name,  second is the function"
   (let ((arg (gensym)))
     `(progn
        ,@(mapcar  #'(lambda (x)
@@ -106,7 +109,10 @@
 
 
 (defun find-symbols(compile-unit  types)
-  "find compile unit's symbol in elf symbols tab section"
+  "find compile unit's symbol in elf symbols tab section
+compile-unit: the dwarf compile-unit die info
+types: list of dw_tag_xxx
+returns: list compile-unit's dw_at_name  list elf-symbol "
   (declare (optimize debug))
   (let ((res nil))
     (dolist (entry (die-children compile-unit))
