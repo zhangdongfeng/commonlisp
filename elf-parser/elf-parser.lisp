@@ -74,6 +74,7 @@
 
 
 (defmacro with-dw-att-name ((&rest at-name) compile-unit &body body)
+  "bind dw-att-name to its value in a die"
   `(let (,@(mapcar
             #'(lambda (x)
                 `(,x (loop for (name val) in ,compile-unit
