@@ -1,2 +1,5 @@
 elf-parser/elf-parser.asd
+elf-parser/.#elf-parser.asd
 http-client/http-client.asd
+http-client/.#http-client.asd
+flexi-streams/flexi-streams.asd
