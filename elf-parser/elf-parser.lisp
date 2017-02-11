@@ -199,7 +199,7 @@ dump-symblo: should also dump sysmbols"
                               sum (elf:size s))))
                 (if (> size threshold)
                     (progn
-                      (format t "~&~a  ~d~%" f size)
+                      (format t "~&~%~a  ~d~%" f size)
                       (if dump-symbol
                           (dump-symbol-list syms))))))
           *all-files*))
