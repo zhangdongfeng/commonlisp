@@ -109,68 +109,61 @@ first is the function name,  second is the function"
   (die-children #'caddr))
 
 
+
+
+
 (defun find-symbols(compile-unit  types)
   "find compile unit's symbol in elf symbols tab section
 compile-unit: the dwarf compile-unit die info
 types: list of dw_tag_xxx
-returns: list compile-unit's dw_at_name  list elf-symbol "
+==> \( compile-unit's path  \( elf-symbol * \) \)"
   (declare (optimize debug))
   (let ((res nil))
     (dolist (entry (die-children compile-unit))
       (when (find (die-tag entry) types)
-        (case (die-tag entry)
+        (ecase (die-tag entry)
           ('dw_tag_subprogram
            (with-dw-att-name
                ( dw_at_name  DW_AT_high_pc ) (die-attr entry)
              (when dw_at_high_pc
-               (progn
-                 (push (find dw_at_name  *symbols*
-                             :key #'elf:sym-name :test #'string=)
-                       res)))))
+               (push (find dw_at_name  *symbols*
+                           :key #'elf:sym-name :test #'string=)
+                     res))))
           ('dw_tag_variable
            (with-dw-att-name
                (dw_at_name DW_AT_location) (die-attr entry)
              (when (> (length dw_at_location) 2)
-               (progn
-                 (push (find dw_at_name  *symbols*
-                             :key #'elf:sym-name :test #'string=)
-                       res)))))
+               (push (find dw_at_name  *symbols*
+                           :key #'elf:sym-name :test #'string=)
+                     res))))
           (others nil))))
     (with-dw-att-name (dw_at_name) (die-attr compile-unit)
       (list dw_at_name (remove-if #'null  res )))))
 
-#+ (or)
-(defun find-symbols111 (compile-unit)
-  "find compile unit's symbol in elf symbols tab section"
-  (declare (optimize debug))
-  (let ((res nil))
-    (dolist (entry (caddr compile-unit))
-      (let ((obj (case (car entry)
-                   ('dw_tag_subprogram
-                    (with-dw-att-name
-                        ( dw_at_name DW_AT_low_pc DW_AT_high_pc )
-                        (cadr  entry)
-                      (when dw_at_high_pc
-                        (list dw_at_name (- dw_at_high_pc dw_at_low_pc)))))
-                   (others nil))))
-        (when obj (push obj res))))
-    (with-dw-att-name
-        (dw_at_name dw_at_comp_dir DW_AT_low_pc DW_AT_high_pc )
-        (cadr compile-unit)
-      (list (if  dw_at_high_pc
-                 (list dw_at_name (- dw_at_high_pc dw_at_low_pc))
-                 (list dw_at_name ))
-            res))))
-
 (defparameter *elf* nil)
 (defparameter *file* nil)
 (defparameter *symbols* nil)
+(defparameter *debug-infos* nil)
+(defparameter *all-files* nil)
+
+(defun get-dw-all-files (debug-info)
+  "find all source file name  from dwarf debug info section
+debug-info: the infos return by  dw-get-debug-info
+==> \( path * \)"
+  (let ((all (loop for unit in debug-info
+                collect (with-dw-att-name (dw_at_name)
+                            (die-attr unit)
+                          dw_at_name))))
+    (delete-duplicates all :test #'string=)))
 
 (defun read-elf (file)
-  "read elf file content"
+  "read elf file content
+file: the full path of elf file"
   (setf *elf* (elf:read-elf file)
         *file* file)
   (setf *symbols* (elf:data (elf:named-section *elf* ".symtab")))
+  (setf *debug-infos* (dw-get-debug-info *elf* *file*))
+  (setf *all-files* (stable-sort (get-dw-all-files *debug-infos*)  #'string< ))
   nil)
 
 
@@ -181,20 +174,36 @@ returns: list compile-unit's dw_at_name  list elf-symbol "
                 (elf:binding sym)
                 (elf:sym-name sym))))
 
+(defun get-all-file-symbols (tags)
+  (mapcar #'(lambda (compile-unit)
+              (funcall #'find-symbols compile-unit tags))
+          *debug-infos*))
 
-(defun show-debug-symbols ()
+(defun find-by-name (name infos)
+  (loop for unit in infos
+     when (string= name (car unit))
+     nconc (cadr unit)))
+
+(defun show-debug-symbols ( &optional (tags '(dw_tag_subprogram  dw_tag_variable))
+                           &key (threshold 32) (dump-symbol t))
+  "show  debug symbols info in dwarf .debug_info section
+tags: optional, default is '(dw_tag_subprogram  dw_tag_variable)
+threshod: optional, the threshold size to dump info
+dump-symblo: should also dump sysmbols"
+
   (declare (optimize debug))
-  (let* ((infos (dw-get-debug-info *elf* *file*))
-         (symbols (mapcar #'(lambda (x)
-                              (funcall #'find-symbols x '(dw_tag_subprogram
-                                                          dw_tag_variable)))
-                          infos)))
-    (mapc #'(lambda (l)
-              (format t "~a~%" (car l))
-              (dump-symbol-list (cadr l)))
-          symbols)
-    nil))
-
+  (let* ((symbols (get-all-file-symbols tags)))
+    (mapc #'(lambda (f)
+              (let* ((syms (find-by-name f symbols))
+                     (size (loop for s in syms
+                              sum (elf:size s))))
+                (if (> size threshold)
+                    (progn
+                      (format t "~&~a  ~d~%" f size)
+                      (if dump-symbol
+                          (dump-symbol-list syms))))))
+          *all-files*))
+  nil)
 
 
 (defun help ()
