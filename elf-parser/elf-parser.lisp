@@ -89,9 +89,6 @@
            (,children (caddr ,compile-unit)))
        ,@body)))
 
-
-
-
 (defmacro define-accessor (&rest methods)
   "define trivial accessor functions,
 methods: list function spec
@@ -107,10 +104,6 @@ first is the function name,  second is the function"
     (die-tag #'car)
     (die-attr #'cadr)
   (die-children #'caddr))
-
-
-
-
 
 (defun find-symbols(compile-unit  types)
   "find compile unit's symbol in elf symbols tab section
@@ -149,7 +142,7 @@ types: list of dw_tag_xxx
 (defun get-dw-all-files (debug-info)
   "find all source file name  from dwarf debug info section
 debug-info: the infos return by  dw-get-debug-info
-==> \( path * \)"
+==> \( path * \(elf-symbol * \) \)"
   (let ((all (loop for unit in debug-info
                 collect (with-dw-att-name (dw_at_name)
                             (die-attr unit)
@@ -175,34 +168,53 @@ file: the full path of elf file"
                 (elf:sym-name sym))))
 
 (defun get-all-file-symbols (tags)
-  (mapcar #'(lambda (compile-unit)
-              (funcall #'find-symbols compile-unit tags))
-          *debug-infos*))
+  "get all soruce file global symbols,
+tag: list of dwarf tag
+==> \(file-name \("
+  (let* ((syms (mapcar #'(lambda (compile-unit)
+                           (funcall #'find-symbols compile-unit tags))
+                       *debug-infos*)))
+    (mapcar #'(lambda (f)
+                (list f (find-by-name f syms)))
+            *all-files*)))
 
 (defun find-by-name (name infos)
+  "collect all debug info symbols of the same file
+name: file path
+info: dwarf debug info
+==>list elf-symblos"
   (loop for unit in infos
      when (string= name (car unit))
      nconc (cadr unit)))
 
-(defun show-debug-symbols ( &optional (tags '(dw_tag_subprogram  dw_tag_variable))
-                           &key (threshold 32) (dump-symbol t))
+
+
+(defun show-debug-symbols (&optional &key (tags '(dw_tag_subprogram  dw_tag_variable))                                   (threshold 0) (dump-symbol nil) (path nil))
   "show  debug symbols info in dwarf .debug_info section
 tags: optional, default is '(dw_tag_subprogram  dw_tag_variable)
 threshod: optional, the threshold size to dump info
 dump-symblo: should also dump sysmbols"
-
   (declare (optimize debug))
-  (let* ((symbols (get-all-file-symbols tags)))
+  (let* ((files (get-all-file-symbols tags))
+         (total-size 0))
     (mapc #'(lambda (f)
-              (let* ((syms (find-by-name f symbols))
+              (let* ((syms (cadr f))
                      (size (loop for s in syms
                               sum (elf:size s))))
+                (setf total-size (+ total-size size))
                 (if (> size threshold)
                     (progn
-                      (format t "~&~%~a  ~d~%" f size)
+                      (format t "~&~a  ~d~%" (car f) size)
                       (if dump-symbol
-                          (dump-symbol-list syms))))))
-          *all-files*))
+                          (progn
+                            (dump-symbol-list syms)
+                            (format t "~%")))))))
+          (remove-if-not  #'(lambda (f)
+                              (if path
+                                  (search path (car f))
+                                  t))
+                          files))
+    (format t "~&total size ~:d~%" total-size))
   nil)
 
 
