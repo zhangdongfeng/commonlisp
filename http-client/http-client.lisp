@@ -3,94 +3,111 @@
 (in-package #:http-client)
 
 
-(use-package (list :drakma :html5-parser :cl-ppcre :cl-html-parse))
+(use-package (list :drakma :plump))
 ;;; "http-client" goes here. Hacks and glory await!
-
-#+ (or)
-(defun flex-dom-map (recurse-p fn node)
-  "fn is applied to each visited node
-   recurse-p controls whether to visit the children of node"
-  (if node
-      (progn
-        (funcall fn node) ;apply the function to the node
-        (if (funcall recurse-p node)
-            (html5-parser:element-map-children
-             (lambda (n-node) (flex-dom-map recurse-p fn n-node)) node)))))
-
-
-#+ (or)
-(defun standard-recurse-p (node)
-  "returns true only if you aren't trying to recurse into a script,
-  style, or noscript tag."
-  (not (or (equalp (node-name node) "script")
-	   (equalp (node-name node) "style")
-	   (equalp (node-name node) "noscript"))))
-
-
-
-#+ (or)
-(defun remove-node-if (pred node)
-  (declare (optimize debug))
-  (if node
-      (if (not (funcall pred node))
-          (cons (list (node-type node)
-                      (node-name node)
-                      (node-value node))
-                (list (element-map-children
-                       (lambda (n-node)
-                         (remove-node-if pred n-node))
-                       node))))))
-
-#+ (or)
-(defun get-title (dom-node)
-  (flex-dom-map
-   #'standard-recurse-p
-   (lambda (node) (if (equalp (node-name node) "title")
-                 (return-from get-title (node-value (node-first-child node)))))
-   dom-node))
 
 (defun remove-newlines (str)
   (remove-if (lambda (ch) (or (eql ch #\return)
                          (eql ch #\linefeed))) str))
-#+ (or)
-(defun scrapetext (top-node recurse-p)
-  (remove-newlines
-   (with-output-to-string (s)
-     (flex-dom-map
-      recurse-p
-      (lambda (node) (if (equal (html5-parser:node-type node) :TEXT)
-                    (format s " ~a " (html5-parser:node-value node))))
-      top-node))))
-
-#+ (or)
-(defun get-article-text-node (root-node)
-  "this function maps its way through the DOM nodes till it finds a 
-   node with name 'div' and 'id' attribute equal to 'mw-content-text', 
-   then returns that node"
-  (flex-dom-map #'standard-recurse-p
-                (lambda (node)
-                  (if (equalp (html5-parser:node-name node) "div")
-                      (if (equalp (html5-parser:element-attribute node "id") "mw-content-text")
-                          (return-from get-article-text-node node))))
-                root-node ))
-
-#+ (or)
-(defmethod no-applicable-method ((method (eql #'html5-parser::%node-attributes)) &rest args)
-  "this method surpresses 'no-applicable-method' errors from html5-parser::%node-attributes and
-   simply returns nil instead.  These errors come about because we are calling element-attributes
-   on text nodes, which of course do not have attributes"
-  nil)
-
-
-#+ (or)
-(defun getwikitext (root-node)
-  (let ((wikitextnode (get-article-text-node root-node)))
-    (remove-excess-whitespace 
-     (scrapetext wikitextnode 
-                 (lambda (node)
-                   (and (standard-recurse-p node)
-                        (not (equalp (node-name node) "table"))
-                        (not (cl-ppcre:scan "thumb" (element-attribute node "class")))))))))
 
 (defun remove-excess-whitespace (str)
   (cl-ppcre:regex-replace-all "\\s+" str " "))
+
+
+(defun slurp-stream (stream)
+  "Quickly slurps the stream's contents into an array with fill pointer."
+  (declare (stream stream))
+  (with-output-to-string (string)
+    (let ((buffer (make-array 4096 :element-type 'character)))
+      (loop for bytes = (read-sequence buffer stream)
+         do (write-sequence buffer string :start 0 :end bytes)
+         while (= bytes 4096)))))
+
+
+(defun slurp-file (filespec &rest open-args)
+  "Quickly slurps the stream's contents into an array with fill pointer."
+  (with-open-stream (stream (apply #'open filespec open-args))
+    (with-output-to-string (string)
+      (let ((buffer (make-array 4096 :element-type 'character)))
+        (loop for bytes = (read-sequence buffer stream)
+           do (write-sequence buffer string :start 0 :end bytes)
+           while (= bytes 4096))))))
+
+
+(defun file-at-once (filespec &rest open-args)
+  (with-open-stream (stream (apply #'open filespec
+                                   open-args))
+    (let* ((buffer
+            (make-array (file-length stream)
+                        :element-type
+                        (stream-element-type stream)
+                        :fill-pointer t))
+           ￼￼                        (position (read-sequence buffer stream)))
+      (setf (fill-pointer buffer) position)
+      buffer)))
+
+
+(let ((cookie-jar (make-instance 'drakma:cookie-jar)))
+  (drakma:http-request "http://www.phpsecurepages.com/test/test.php"
+                       :method :post
+                       :parameters '(("entered_login" . "test")
+                                     ("entered_password" . "test"))
+                       :cookie-jar cookie-jar)
+  (drakma:http-request "http://www.phpsecurepages.com/test/test2.php"
+                       :cookie-jar cookie-jar)
+  (drakma:cookie-jar-cookies cookie-jar))
+
+
+(drakma:http-request "http://www.w3school.com.cn/tiy/v.asp"
+                     :method :post
+                     :external-format-out :gb2312
+                     :parameters `(("code" . ,(slurp-file #p "~/quicklisp/local-projects/http-client/tmp.html"))))
+
+
+
+(setf drakma:*header-stream* *standard-output*)
+
+(drakma:http-request "http://www.baidu.com"
+                     :method :post
+                     :external-format-out :utf8
+                     :parameters '(("wd" . "东风")))
+
+(drakma:http-request "http://www.w3school.com.cn/tiy/v.asp"
+                     :method :post
+                     :parameters '(("wd" . "dongfeng")))
+
+(setf *h*  (plump:parse (drakma:http-request "http://www.w3school.com.cn/tiy/t.asp?f=html_form_submit")))
+(mapc #'serialize (plump:get-elements-by-tag-name *h* "input"))
+
+
+(plump:parse "<html>
+<body>
+
+<h1>My First Heading</h1>
+
+<p>My first paragraph.</p>
+
+</body>
+</html>")
+
+(plump:serialize *)
+
+
+(defparameter *h* (plump:parse "<html>
+<body>
+
+<h1>My First Heading</h1>
+
+<p>My first paragraph.</p>
+
+</body>
+</html>"))
+
+
+(drakma:http-request "http://www.w3school.com.cn/tiy/v.asp"
+                     :method :post
+                     :content-type "multipart/form-data"
+                     :external-format-out :gb2312
+                     :close nil
+                     :parameters `(("code" . ,(slurp-file #p "~/quicklisp/local-projects/http-client/tmp.html"))))
+
