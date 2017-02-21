@@ -189,14 +189,36 @@ info: dwarf debug info
 
 
 
-(defun show-debug-symbols (&optional &key (tags '(dw_tag_subprogram  dw_tag_variable))                                   (threshold 0) (dump-symbol nil) (path nil))
+(defun remove-rodata-symbols (file-sym)
+  (let* ((rodata (elf:sh (elf:named-section *elf* "rodata")))
+         (rodata-start (elf:address rodata))
+         (rodata-end (+ rodata-start (elf:size rodata))))
+    (list (car file-sym)
+          (remove-if #'(lambda (sym)
+                         (and (> (elf:value sym) rodata-start)
+                              (< (elf:value sym) rodata-end)))
+                     (cadr file-sym)))))
+
+
+
+(defun show-debug-symbols (&optional &key (tags '(dw_tag_subprogram  dw_tag_variable))                                   (threshold 0) (dump-symbol nil) (path nil) (no-rodata t))
   "show  debug symbols info in dwarf .debug_info section
 tags: optional, default is '(dw_tag_subprogram  dw_tag_variable)
 threshod: optional, the threshold size to dump info
-dump-symblo: should also dump sysmbols"
+dump-symblo: should also dump sysmbols
+path: path filter
+no-rodata: exclude rodata symbols"
   (declare (optimize debug))
-  (let* ((files (get-all-file-symbols tags))
-         (total-size 0))
+
+  (let* ((total-size 0)
+         (files (get-all-file-symbols tags))
+         (files1 (remove-if-not  #'(lambda (f) (if path
+                                              (search path (car f))
+                                              t))
+                                 files))
+         (files2 (if no-rodata
+                     (mapcar #'remove-rodata-symbols files1)
+                     files1)))
     (mapc #'(lambda (f)
               (let* ((syms (cadr f))
                      (size (loop for s in syms
@@ -209,11 +231,7 @@ dump-symblo: should also dump sysmbols"
                           (progn
                             (dump-symbol-list syms)
                             (format t "~%")))))))
-          (remove-if-not  #'(lambda (f)
-                              (if path
-                                  (search path (car f))
-                                  t))
-                          files))
+          files2)
     (format t "~&total size ~:d~%" total-size))
   nil)
 
