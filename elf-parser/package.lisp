@@ -3,6 +3,8 @@
 (defpackage #:elf-parser
   (:use   #:cl
           #:com.gigamonkeys.binary-data
-          #:alexandria
-          ))
+          #:alexandria)
+  (:export :read-elf
+           :show-debug-symbols
+           :show-memory-layout))
 

@@ -201,7 +201,7 @@ info: dwarf debug info
 
 
 
-(defun show-debug-symbols (&optional &key (tags '(dw_tag_subprogram  dw_tag_variable))                                   (threshold 0) (dump-symbol nil) (path nil) (no-rodata t))
+(defun show-debug-symbols (&optional &key (tag :data)                                   (threshold 0) (dump-symbol nil) (path nil) (no-rodata t))
   "show  debug symbols info in dwarf .debug_info section
 tags: optional, default is '(dw_tag_subprogram  dw_tag_variable)
 threshod: optional, the threshold size to dump info
@@ -211,7 +211,9 @@ no-rodata: exclude rodata symbols"
   (declare (optimize debug))
 
   (let* ((total-size 0)
-         (files (get-all-file-symbols tags))
+         (files (get-all-file-symbols (ecase tag
+                                        (:code '(dw_tag_subprogram))
+                                        (:data '(dw_tag_variable)))))
          (files1 (remove-if-not  #'(lambda (f) (if path
                                               (search path (car f))
                                               t))

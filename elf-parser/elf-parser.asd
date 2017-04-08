@@ -11,6 +11,6 @@
                #:elf)
   :serial t
   :components ((:file "package")
-               (:file "elf-parser")
-               (:file "dwarf")))
+               (:file "dwarf")
+               (:file "elf-parser")))
 
