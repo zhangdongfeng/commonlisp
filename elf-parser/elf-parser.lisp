@@ -187,21 +187,19 @@ info: dwarf debug info
      when (string= name (car unit))
      nconc (cadr unit)))
 
-
-
-(defun remove-rodata-symbols (file-sym)
+(defun rodata-sym? (sym)
   (let* ((rodata (elf:sh (elf:named-section *elf* "rodata")))
          (rodata-start (elf:address rodata))
          (rodata-end (+ rodata-start (elf:size rodata))))
-    (list (car file-sym)
-          (remove-if #'(lambda (sym)
-                         (and (> (elf:value sym) rodata-start)
-                              (< (elf:value sym) rodata-end)))
-                     (cadr file-sym)))))
+    (and (> (elf:value sym) rodata-start)
+         (< (elf:value sym) rodata-end))))
 
+(defun filter-rodata (pred file-sym)
+  (list (car file-sym)
+        (remove-if-not pred (cadr file-sym))))
 
-
-(defun show-debug-symbols (&optional &key (tag :data)                                   (threshold 0) (dump-symbol nil) (path nil) (no-rodata t))
+(defun show-debug-symbols (&optional &key (tag :data)
+                                       (threshold 0) (dump-symbol nil) (path nil)  (rodata :no))
   "show  debug symbols info in dwarf .debug_info section
 tags: optional, default is '(dw_tag_subprogram  dw_tag_variable)
 threshod: optional, the threshold size to dump info
@@ -209,18 +207,18 @@ dump-symblo: should also dump sysmbols
 path: path filter
 no-rodata: exclude rodata symbols"
   (declare (optimize debug))
-
   (let* ((total-size 0)
          (files (get-all-file-symbols (ecase tag
                                         (:code '(dw_tag_subprogram))
-                                        (:data '(dw_tag_variable)))))
-         (files1 (remove-if-not  #'(lambda (f) (if path
-                                              (search path (car f))
-                                              t))
-                                 files))
-         (files2 (if no-rodata
-                     (mapcar #'remove-rodata-symbols files1)
-                     files1)))
+                                        (:data '(dw_tag_variable))
+                                        (:all '(dw_tag_subprogram dw_tag_variable)))))
+         (files (remove-if-not  #'(lambda (f) (if path  (search path (car f))  t))  files))
+         (files (ecase rodata
+                  (:no (mapcar
+                        (alexandria:curry #'filter-rodata  (alexandria::compose #'not #'rodata-sym?))
+                        files))
+                  (:only (mapcar  (alexandria:curry #'filter-rodata #'rodata-sym?) files))
+                  (:all files))))
     (mapc #'(lambda (f)
               (let* ((syms (cadr f))
                      (size (loop for s in syms
@@ -233,7 +231,7 @@ no-rodata: exclude rodata symbols"
                           (progn
                             (dump-symbol-list syms)
                             (format t "~%")))))))
-          files2)
+          files)
     (format t "~&total size ~:d~%" total-size))
   nil)
 

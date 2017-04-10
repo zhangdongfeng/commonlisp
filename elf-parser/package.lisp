@@ -6,5 +6,6 @@
           #:alexandria)
   (:export :read-elf
            :show-debug-symbols
-           :show-memory-layout))
+           :show-memory-layout
+           :show-static-symbols))
 
