@@ -191,8 +191,8 @@ info: dwarf debug info
   (let* ((rodata (elf:sh (elf:named-section *elf* "rodata")))
          (rodata-start (elf:address rodata))
          (rodata-end (+ rodata-start (elf:size rodata))))
-    (and (> (elf:value sym) rodata-start)
-         (< (elf:value sym) rodata-end))))
+    (and (>= (elf:value sym) rodata-start)
+         (<= (elf:value sym) rodata-end))))
 
 (defun filter-rodata (pred file-sym)
   (list (car file-sym)
