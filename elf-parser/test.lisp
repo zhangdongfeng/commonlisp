@@ -1,6 +1,10 @@
 (in-package :elf-parser)
 
-(defparameter *mem* '( "LOAD" "text" "rodata" "datas" "bss" "noinit"))
+(defun package-symbol-list  (package)
+  (with-output-to-string (s)
+    (let  ((*standard-output* s))
+      (do-external-symbols (s package)
+        (print s)))))
 
 (defun all-memory-items ( elf-file )
   (with-slots (elf:sections elf:section-table elf:program-table) elf-file
@@ -29,9 +33,6 @@
                    do (format t "~&|0x~x|~18a|~:D|~%" beg name  size ))))
           (all-memory-items *elf*))
   nil)
-
-(defun overylay-sections (elf)
-  (remove-if-not #'(lambda (sec) (search ".overlay." (elf:name sec))) (elf:sections *elf*)))
 
 (defun overlay-sym? (sym)
   (let* ((overlay-secs (remove-if-not
@@ -87,7 +88,7 @@ path: path filter"
                                        (loop for f in files sum (sum-syms f)))
                                    (list codes module-datas module-rodatas module-overlay-datas)))
                    (when dump-file (format t "~&**** module details:~%")
-                         (format t "~&| file name |code size|data size|rodata size|~%")
+                         (format t "~&| file name |code size|data size|rodata size| overlay-data-size|~%")
                          (mapc #'dump-file-info   codes)))))))
       (flet ((dump-module (m)
                (let* ((module-codes (remove-if-not  #'(lambda (f) (search m  (car f)))  all-code-files))
@@ -96,6 +97,49 @@ path: path filter"
                  (setq all-code-files (remove-if  #'(lambda (f) (search m  (car f)))  all-code-files)
                        all-data-files (remove-if #'(lambda (f) (search m  (car f)))  all-data-files)))))
         (format t "~&*** module mem :~%")
-        (format t "~&| module name |code size|data size|rodata size|~%")
+        (format t "~&| module name |code size|data size|rodata size|overlay data size|~%")
         (mapc #'dump-module modules)
-        (dump-code-data "others" all-code-files all-data-files)))))
+        ;;(dump-code-data "others" all-code-files all-data-files)
+        ))))
+
+
+
+(defun help ()
+  (format t "usage:
+elf-parser   elf-file   [module=xxx]  [prefix=xxxx]   [dump-file]   [dump-symbol]
+elf-file:   the elf-file with dwarf debug info,
+module:   the path fragment to search,  seperated by space
+prefix:  when dump file details, ignore the path prefix
+dump-file:  dump file info details
+dump-symbol:  dump  symbols details in file
+"))
+
+(defun main ()
+  (if (>= (length sb-ext:*posix-argv*) 2)
+      (flet ((get-option (key)
+               (cadr (remove-if #'(lambda (s) (string= s ""))
+                                (uiop/utility:split-string
+                                 (find-if #'(lambda (arg) (search key  arg)) sb-ext:*posix-argv* )
+                                 :separator "=")))))
+        (let*  ((file  (nth 1 sb-ext:*posix-argv*))
+                (restarg (cddr sb-ext:*posix-argv*))
+                (prefix  (get-option "prefix="))
+                (dump-file (find-if #'(lambda (arg) (search "dump-file" arg)) restarg))
+                (dump-symbol (find-if #'(lambda (arg) (search "dump-symbol" arg)) restarg))
+                (modules (remove-if #'(lambda (s) (string= s ""))
+                                    (uiop/utility:split-string  (get-option "module=")))))
+          (format t "~a" file)
+          (loop for s in sb-ext:*posix-argv*
+             do (format t "~&~a~%" s))
+          (read-elf file)
+          (when *elf*
+            (show-memory-sec '( "LOAD" "text" "rodata" "datas" "bss" "noinit"))
+            (show-debug-module-symbols
+             modules
+             :prefix prefix
+             :dump-symbol dump-symbol
+             :dump-file dump-file))))
+      (help)))
+
+#+(or)
+(sb-ext:save-lisp-and-die #p "elf-parser" :toplevel #'main :executable t)

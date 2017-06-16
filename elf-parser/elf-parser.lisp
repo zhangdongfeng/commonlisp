@@ -2,11 +2,13 @@
 
 (in-package :elf-parser)
 
-(defun package-symbol-list  (package)
-  (with-output-to-string (s)
-    (let  ((*standard-output* s))
-      (do-external-symbols (s package)
-        (print s)))))
+(defparameter *elf* nil)
+(defparameter *file* nil)
+(defparameter *symbols* nil)
+(defparameter *debug-infos* nil)
+(defparameter *all-files* nil)
+
+
 
 ;;; "elf-parser" goes here. Hacks and glory await!
 (defun show-static-symbols ()
@@ -133,11 +135,7 @@ types: list of dw_tag_xxx
     (with-dw-att-name (dw_at_name) (die-attr compile-unit)
       (list dw_at_name (remove-if #'null  res )))))
 
-(defparameter *elf* nil)
-(defparameter *file* nil)
-(defparameter *symbols* nil)
-(defparameter *debug-infos* nil)
-(defparameter *all-files* nil)
+
 
 (defun get-dw-all-files (debug-info)
   "find all source file name  from dwarf debug info section
@@ -234,20 +232,3 @@ no-rodata: exclude rodata symbols"
           files)
     (format t "~&total size ~:d~%" total-size))
   nil)
-
-
-(defun help ()
-  (format t "read-elf file-path ~% show-debug-symbols"))
-
-
-(defun main ()
-  (if (= (length sb-ext:*posix-argv*) 2)
-      (let ((file  (nth 1 sb-ext:*posix-argv*)))
-        (format t "~a" file)
-        (read-elf file)
-        (show-debug-symbols))
-      (loop for s in sb-ext:*posix-argv*
-         do (format t "~&~a~%" s))))
-
-#+ (or)
-(sb-ext:save-lisp-and-die #p "elf-parser" :toplevel #'main :executable t)
