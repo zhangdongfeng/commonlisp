@@ -1,3 +1,5 @@
+(show-memory-sec '( "LOAD" "text" "rodata" "datas" "bss" "noinit"))
+
 (show-debug-module-symbols
  '( "ext/lib/actions/libsystem"
    "samples/storyapp/src/storyplayer"
