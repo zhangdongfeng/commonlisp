@@ -83,7 +83,7 @@ path: path filter"
                                     (mapcar #'sum-syms (list  f  data-file rodata-file overlay-file)))
                             (when dump-symbol (mapc #'dump-symbol-list
                                                     (list  f  data-file rodata-file overlay-file))))))
-                   (format t "~&|~18a~{~T|~:D~}|~%"  module
+                   (format t "~&|~18a~{~T|~D~}|~%"  module
                            (mapcar #'(lambda (files)
                                        (loop for f in files sum (sum-syms f)))
                                    (list codes module-datas module-rodatas module-overlay-datas)))

@@ -462,22 +462,10 @@
 (defparameter *debug* nil)
 
 
-(defun dw-get-debug-info1 (elf file)
-  "get dwarf debug info in elf file"
-  (declare (optimize debug))
-  (when (elf:named-section elf ".debug_abbrev")
-    (setf  *debug-str* (elf:data (elf:named-section elf ".debug_str"))))
-  (loop for offset in (mapcar #'car
-                              (dw-get-address-range-table elf file))
-     nconc (dw-get-compile-unit-debug-info elf file offset)))
-
-
-
-
 (defun dw-get-debug-info (elf file)
   "get dwarf debug info in elf file"
   (declare (optimize debug))
   (when (elf:named-section elf ".debug_str")
-    (setf  *debug-str* (elf:data (elf:named-section elf ".debug_str"))))
-  (loop for offset in (dw-get-compile-unit-offset elf file)
-     nconc (dw-get-compile-unit-debug-info elf file offset)))
+    (setf  *debug-str* (elf:data (elf:named-section elf ".debug_str")))
+    (loop for offset in (dw-get-compile-unit-offset elf file)
+       nconc (dw-get-compile-unit-debug-info elf file offset))))

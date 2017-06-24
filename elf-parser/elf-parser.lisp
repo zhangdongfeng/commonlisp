@@ -152,7 +152,8 @@ debug-info: the infos return by  dw-get-debug-info
 file: the full path of elf file"
   (setf *elf* (elf:read-elf file)
         *file* file)
-  (setf *symbols* (elf:data (elf:named-section *elf* ".symtab")))
+  (when (elf:named-section *elf* ".symtab")
+    (setf *symbols* (elf:data (elf:named-section *elf* ".symtab"))))
   (setf *debug-infos* (dw-get-debug-info *elf* *file*))
   (setf *all-files* (stable-sort (get-dw-all-files *debug-infos*)  #'string< ))
   nil)
