@@ -400,14 +400,13 @@
                             (> pos start))))
            collect abbrev)))))
 
-(defun dw-get-compile-unit-debug-info (elf file offset)
+(defun dw-get-compile-unit-debug-info (elf file offset sh)
   "get dwarf compile unit's  debug info in elf file,
   offset: is offset into .debug_info segment
   result: (tag attributs children)"
   (declare (optimize debug))
   (with-open-file (in file :element-type '(unsigned-byte 8))
-    (with-slots (elf:offset elf:size)
-        (elf:sh (elf:named-section elf ".debug_info"))
+    (with-slots (elf:offset elf:size) sh
       (file-position in (+ offset elf:offset))
       (when *debug* (format t "~%compile-unit start: ~d offset ~d~%"
                             (file-position in) offset))
@@ -439,12 +438,11 @@
                nconc (read-debug-entry))))))))
 
 
-(defun dw-get-compile-unit-offset (elf file)
+(defun dw-get-compile-unit-offset (elf file sh)
   "get dwarf compile unit's  debug info in elf file, offset is offset into .debug_info segment"
   (declare (optimize debug))
   (with-open-file (in file :element-type '(unsigned-byte 8))
-    (with-slots (elf:offset elf:size)
-        (elf:sh (elf:named-section elf ".debug_info"))
+    (with-slots (elf:offset elf:size) sh
       (file-position in elf:offset)
       (let ((result nil))
         (loop
@@ -462,10 +460,10 @@
 (defparameter *debug* nil)
 
 
-(defun dw-get-debug-info (elf file)
+(defun dw-get-debug-info (elf file sh)
   "get dwarf debug info in elf file"
   (declare (optimize debug))
   (when (elf:named-section elf ".debug_str")
     (setf  *debug-str* (elf:data (elf:named-section elf ".debug_str")))
-    (loop for offset in (dw-get-compile-unit-offset elf file)
-       nconc (dw-get-compile-unit-debug-info elf file offset))))
+    (loop for offset in (dw-get-compile-unit-offset elf file sh)
+       nconc (dw-get-compile-unit-debug-info elf file offset sh))))
