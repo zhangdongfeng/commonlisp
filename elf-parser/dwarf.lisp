@@ -240,12 +240,12 @@
   (let* ((bytes (loop
                    for char = (read-byte in)
                    collect char into result
-                   do (when (< char  128) (return result))) )
-         (len (length bytes)))
+                   do (when (< char  128) (return result)))))
     (loop with value = 0
-       for low-bit downfrom (* 7 (1- len)) to 0 by 7
-       for byte in bytes
-       do (setf (ldb (byte 7 low-bit) value) byte)
+       with  bit = 0
+       for b in bytes
+       do (setf (ldb (byte 7 bit) value) b
+                bit (+ bit 7))
        finally (return value))))
 
 (define-binary-type leb128 ()
@@ -415,24 +415,24 @@
               (abb (dw-get-abbrev-table elf file :offset abbrev)))
           (labels
               ((read-debug-entry ()
-                 (when *debug* (format t "~&~x ~x ~%"
-                                       (file-position in)
-                                       (- (file-position in) elf:offset)))
-                 (if (> (file-position in) unit-end)
-                     nil
-                     (let ((index (read-value 'leb128 in)))
-                       (if (zerop index)
-                           nil
-                           (with-slots (tag haschild attributes)
-                               (nth (1- index ) abb)
-                             (let ((result (loop for (name form) in attributes
-                                              collect (list name (read-value form in)))))
-                               (if (eq haschild 1)
-                                   (cons (list tag result
-                                               (read-debug-entry))
-                                         (read-debug-entry))
-                                   (cons (list tag result)
-                                         (read-debug-entry))))))))))
+                 (let* ((file-ofs (file-position in))
+                        (info-ofs (- file-ofs elf:offset)))
+                   (when *debug* (format t "~&~x ~x ~%" file-ofs info-ofs))
+                   (if (> (file-position in) unit-end)
+                       nil
+                       (let ((index (read-value 'char in)))
+                         (if (zerop index)
+                             nil
+                             (with-slots (tag haschild attributes)
+                                 (nth (1- index ) abb)
+                               (let ((result (loop for (name form) in attributes
+                                                collect (list name (read-value form in)))))
+                                 (if (eq haschild 1)
+                                     (cons (list tag result
+                                                 (read-debug-entry))
+                                           (read-debug-entry))
+                                     (cons (list tag result)
+                                           (read-debug-entry)))))))))))
             (loop
                until (> (file-position in) unit-end)
                nconc (read-debug-entry))))))))
