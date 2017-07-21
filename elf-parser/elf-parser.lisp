@@ -88,6 +88,7 @@ file: the full path of elf file"
         *file* file)
   (when (elf:named-section *elf* ".symtab")
     (setf *symbols* (elf:data (elf:named-section *elf* ".symtab"))))
-  (setf *debug-infos* (dw-get-debug-info *elf* *file* (elf:sh (elf:named-section *elf* ".debug_info"))))
+  (when (elf:named-section *elf* ".debug_info")
+    (setf *debug-infos* (dw-get-debug-info *elf* *file* (elf:sh (elf:named-section *elf* ".debug_info")))))
   (setf *all-files* (stable-sort (get-dw-all-files *debug-infos*)  #'string< ))
   nil)
