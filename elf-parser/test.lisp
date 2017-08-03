@@ -208,7 +208,7 @@ path: path filter"
                                     (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter #'overlay-sym?) datas))
                                     (module-datas (mapcar (alexandria:curry #'sym-filter
                                                                             #'(lambda (s) (and (not (rodata-sym? s))
-                                                                                           (not (overlay-sym? s)))))
+                                                                                               (not (overlay-sym? s)))))
                                                           datas)))
                                (flet ((dump-file-info(f)
                                                      (let* ((name (car f))
@@ -237,8 +237,8 @@ path: path filter"
         (format t "~&| module name |code size|data size|rodata size|overlay data size|~%")
         (mapc #'dump-module modules)
         (dump-code-data "others" all-code-files all-data-files)
+        t
         ))))
-
 
 
 (defun help ()
