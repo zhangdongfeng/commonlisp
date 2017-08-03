@@ -35,7 +35,7 @@
               addr-pairs)))
 
 (defun rodata-sym? (sym)
-  (let* ((rodata (elf:sh (elf:named-section *elf* ".rodata")))
+  (let* ((rodata (elf:sh (elf:named-section *elf* "rodata")))
          (rodata-start (elf:address rodata))
          (rodata-end (+ rodata-start (elf:size rodata))))
     (and (>= (elf:value sym) rodata-start)
