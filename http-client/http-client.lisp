@@ -3,12 +3,7 @@
 (in-package #:http-client)
 
 
-(use-package (list :drakma :plump))
-;;; "http-client" goes here. Hacks and glory await!
 
-(defun remove-newlines (str)
-  (remove-if (lambda (ch) (or (eql ch #\return)
-                         (eql ch #\linefeed))) str))
 
 (defun remove-excess-whitespace (str)
   (cl-ppcre:regex-replace-all "\\s+" str " "))
@@ -42,7 +37,7 @@
                         :element-type
                         (stream-element-type stream)
                         :fill-pointer t))
-           ￼￼                        (position (read-sequence buffer stream)))
+           (position (read-sequence buffer stream)))
       (setf (fill-pointer buffer) position)
       buffer)))
 
@@ -58,56 +53,4 @@
   (drakma:cookie-jar-cookies cookie-jar))
 
 
-(drakma:http-request "http://www.w3school.com.cn/tiy/v.asp"
-                     :method :post
-                     :external-format-out :gb2312
-                     :parameters `(("code" . ,(slurp-file #p "~/quicklisp/local-projects/http-client/tmp.html"))))
-
-
-
 (setf drakma:*header-stream* *standard-output*)
-
-(drakma:http-request "http://www.baidu.com"
-                     :method :post
-                     :external-format-out :utf8
-                     :parameters '(("wd" . "东风")))
-
-(drakma:http-request "http://www.w3school.com.cn/tiy/v.asp"
-                     :method :post
-                     :parameters '(("wd" . "dongfeng")))
-
-(setf *h*  (plump:parse (drakma:http-request "http://www.w3school.com.cn/tiy/t.asp?f=html_form_submit")))
-(mapc #'serialize (plump:get-elements-by-tag-name *h* "input"))
-
-
-(plump:parse "<html>
-<body>
-
-<h1>My First Heading</h1>
-
-<p>My first paragraph.</p>
-
-</body>
-</html>")
-
-(plump:serialize *)
-
-
-(defparameter *h* (plump:parse "<html>
-<body>
-
-<h1>My First Heading</h1>
-
-<p>My first paragraph.</p>
-
-</body>
-</html>"))
-
-
-(drakma:http-request "http://www.w3school.com.cn/tiy/v.asp"
-                     :method :post
-                     :content-type "multipart/form-data"
-                     :external-format-out :gb2312
-                     :close nil
-                     :parameters `(("code" . ,(slurp-file #p "~/quicklisp/local-projects/http-client/tmp.html"))))
-
