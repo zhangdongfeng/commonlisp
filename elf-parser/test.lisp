@@ -99,7 +99,7 @@ path: path filter"
         (format t "~&*** module mem :~%")
         (format t "~&| module name |code size|data size|rodata size|overlay data size|~%")
         (mapc #'dump-module modules)
-        ;;(dump-code-data "others" all-code-files all-data-files)
+        (dump-code-data "others" all-code-files all-data-files)
         ))))
 
 
