@@ -13,5 +13,7 @@
   :components ((:file "package")
                (:file "dwarf")
                (:file "elf-parser")
-               (:file "test")))
+               (:file "test")
+               (:file "keilc251"))
+  )
 
