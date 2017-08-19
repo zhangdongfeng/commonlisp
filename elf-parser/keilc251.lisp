@@ -16,6 +16,9 @@
     (loop for line = (read-line s  nil nil)
        while  line  collect line)))
 
+(defparameter *file* #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP")
+(defparameter *lines* nil)
+
 (defun pre-process (path)
   (flet ((read-file-into-lines (path)
            (with-open-file (f path )
@@ -37,50 +40,226 @@
                          #'lines-to-string
                          #'remove-tricky-lines
                          #'read-file-into-lines)))
-      (funcall proc path))))
+      (setq *lines* (funcall proc path))
+      nil)))
 
-(defparameter *input-modules * nil)
+(defparameter *input-modules* nil)
+
+(defgeneric read-obj (type str) )
+
+(defun remove-regex (str regex)
+  (multiple-value-bind (s  e  r1 r2)
+      (scan regex  str)
+    (if e  (values (subseq str e) t)
+        (values str nil))))
+
+
+
+
+(defclass segments ()
+  ((segs
+    :initform nil
+    :accessor segs )))
+
+(setf (get 'segments 'tag) "\\bSEGMENTS\\b")
+
+(defmethod read-obj ((type (eql 'segments)) str)
+  (let ((regex (get 'segments 'tag) ))
+    (multiple-value-bind (s  e  r1 r2)
+        (scan regex  str)
+      (if e
+          (let*  ((s (remove-regex str regex))
+                  (s (remove-regex s "^\\s*\\("))
+                  (obj (make-instance 'segments)))
+            (multiple-value-bind (o st)
+                (read-obj obj s)
+              (values o (remove-regex st "^\\s*\\)"))))
+          (values nil str)))))
+
+(defmethod read-obj ((obj segments) str)
+  (format t "read-obj method")
+  (let*  ((regex "^\\s*([^\\)]+),?"))
+    (read-remove-regex-from-string
+     regex str #'(lambda (res s)
+                   (setf (segs obj) res)
+                   (values obj s)))))
+
+
+(defclass overlay ()
+  ((content
+    :initform nil
+    :accessor content)))
+
+(setf (get 'segments 'tag) "\\bOVERLAY\\b")
+
+(defmethod read-obj ((type (eql 'overlay)) str)
+  (let ((regex (get 'overlay 'tag) ))
+    (multiple-value-bind (s  e  r1 r2)
+        (scan regex  str)
+      (if e
+          (let*  ((s (remove-regex str regex))
+                  (s (remove-regex s "^\\s*\\("))
+                  (obj (make-instance 'overlay)))
+            (multiple-value-bind (o st)
+                (read-obj obj s)
+              (values o (remove-regex st "^\\s*\\)"))))
+          (values nil str)))))
+
+(defmethod read-obj ((obj overlay) str)
+  (format t "read-obj method")
+  (let*  ((regex "^\\s*([^\\)]+),?"))
+    (read-remove-regex-from-string
+     regex str #'(lambda (res s)
+                   (setf (contents obj) res)
+                   (values obj s)))))
+
+
+
+(defun test-collecter (lst collecter)
+  (if (car lst)
+      (test-collecter (cdr lst) #'(lambda (res  num)
+                                    (funcall collecter (cons (car lst) res) (1+ num))))
+      (funcall collecter nil 0)))
+
+(defun read-remove-regex-from-string (regex string collector)
+  (multiple-value-bind (m r)
+      (scan-to-strings regex string)
+    (if r
+        (read-remove-regex-from-string  regex
+                                        (remove-regex string regex)
+                                        #'(lambda (result str)
+                                            (funcall collector (cons r result) str)))
+        (funcall collector nil string))))
+
+(defclass merge-publics ()
+  ((classes
+    :initform nil
+    :accessor classes )))
+
+(setf (get 'merge-publics 'tag) "\\bMERGEPUBLICS CLASSES\\b")
+
+(defmethod read-obj ((type (eql 'merge-publics)) str)
+  (format t "read-obj")
+  (let ((regex (get 'merge-publics 'tag) ))
+    (multiple-value-bind (s  e  r1 r2)
+        (scan regex  str)
+      (if e
+          (let*  ((s (remove-regex str regex))
+                  (s (remove-regex s "^\\s*\\("))
+                  (obj (make-instance 'merge-publics)))
+            (multiple-value-bind (o st)
+                (read-obj obj s)
+              (values o (remove-regex st "^\\s*\\)"))))
+          (values nil str)))))
+
+(defmethod read-obj ((obj merge-publics) str)
+  (format t "read-obj method")
+  (let*  ((regex "^\\s*(\\S+) \\(([^\\)]+)\\),*"))
+    (read-remove-regex-from-string
+     regex str #'(lambda (res s)
+                   (setf (classes obj) res)
+                   (values obj s)))))
+
+(defparameter *merge-publics* nil)
+(defparameter *t* nil)
+(defun parse-linker-invoke-line (str)
+  (multiple-value-bind (o s)
+      (read-obj 'merge-publics str)
+    (setq *merge-publics* o)
+    (setq *t* s)))
+
+(defun parse-input-modules (lines)
+  (remove-if #'null
+             (mapcar
+              #'(lambda (line)
+                  (if (scan "^  " line)
+                      (multiple-value-bind (m r)
+                          (scan-to-strings "\\((\\S+)\\)\\x0d*$" line)
+                        (if m
+                            (pprint (elt r 0)))
+                        (if (> (length r ) 0)
+                            (elt r 0)))))
+              lines)))
+
+
+
+
+(defparameter *invoke-str* nil)
+(defparameter *module-str* nil)
+(defparameter *memory-str* nil)
+(defparameter *memory-map-str* nil)
+(defparameter *symbol-str* nil)
+(defparameter *symbol-table-str* nil)
 (defun parse-lines (map-lines)
-  (flet ((parse-linker-invoke-line (lines)
+  (flet ((collect-linker-invoke-line (lines)
            (when (scan *invoke-line* (car lines))
-             (progn (cddr lines))
-             ))
-         (parse-input-modules (lines)
+             (progn
+               (setq *invoke-str* (cadr lines))
+               (parse-linker-invoke-line (cadr lines))
+               (cddr lines))))
+         (collect-input-modules (lines)
            (let ((modules (nthcdr  4  lines)))
-             (loop for m on modules
+             (loop with result = nil
+                for m on modules
                 when (scan "^  " (car m))
-                do (format t (car m))
-                else return m)))
-         (parse-memory-class (lines)
+                do (push (car  m) result)
+                else  do
+                  (let ((lines (nreverse result)))
+                    (setq *module-str* (lines-to-string lines))
+                    (setq *input-modules*
+                          (parse-input-modules lines)))
+                and return m)))
+         (collect-memory-class (lines)
            (let ((modules (nthcdr  3  lines)))
-             (loop for m on modules
+             (loop
+                with result = nil
+                for m on modules
                 when (scan "^\\d{6}H\\.?\\d?\\b" (car m) )
-                do (format t  (car m))
+                do (push (car  m) result)
                 else when (scan "^\\s+\\d{6}H" (car m))
                 do (format t (car m))
-                else return m))  )
-         (parse-memory-map-module (lines)
+                else do (let ((lines (nreverse result)))
+                          (setq *memory-str* (lines-to-string lines)))
+                and return m)))
+         (collect-memory-map-module (lines)
            (let ((modules (nthcdr  3  lines)))
-             (loop for m on modules
+             (loop
+                with result = nil
+                for m on modules
                 when (scan "^[0-9A-F]{6}H\\.?\\d?\\b" (car m) )
-                do (format t  (car m))
-                else return m))  )
-         (parse-module-symbols (lines)
+                do (push (car  m) result)
+                else do (let ((lines (nreverse result)))
+                          (setq *memory-map-str* (lines-to-string lines)))
+                and return m))  )
+         (collect-module-symbols (lines)
            (let ((modules (nthcdr  3  lines)))
-             (loop for m on modules
+             (loop
+                with result = nil
+                for m on modules
                 when (scan "^\\s+[0-9A-F]{8}H\\b" (car m) )
-                do (format t  (car m))
-                else return m))  )
-         (parse-module-symbols-table (lines)
+                do (push (car  m) result)
+                else do (let ((lines (nreverse result)))
+                          (setq *symbol-str* (lines-to-string lines)))
+                and return m)))
+         (collect-module-symbols-table (lines)
            (let ((modules (nthcdr  3  lines)))
              (loop for m on modules
                 unless (scan "^      \\S+" (car m) )
                 return m))))
     (let ((proc (compose
-                 #'parse-module-symbols-table
-                 #'parse-module-symbols
-                 #'parse-memory-map-module
-                 #'parse-memory-class
-                 #'parse-input-modules
-                 #'parse-linker-invoke-line)))
+                 #'collect-module-symbols-table
+                 #'collect-module-symbols
+                 #'collect-memory-map-module
+                 #'collect-memory-class
+                 #'collect-input-modules
+                 #'collect-linker-invoke-line)))
       (funcall proc map-lines))))
+
+(let ((proc (compose
+             #'collect-module-symbols-table
+             #'collect-module-symbols
+             #'collect-memory-map-module
+             #'collect-memory-class
+             #'collect-input-modules
+             #'collect-linker-invoke-line)))
+  )
