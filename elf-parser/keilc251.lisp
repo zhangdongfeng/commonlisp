@@ -45,17 +45,10 @@
 
 (defparameter *file* #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP")
 
-
 #+or
 (with-open-file (f #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP1"  :direction :output :if-exists :overwrite :if-does-not-exist :create)
   (loop for line in *lines*
      do (write-line line  f)))
-
-
-
-
-
-
 
 (defun remove-regex (str regex)
   (multiple-value-bind (s  e  r1 r2)
@@ -96,6 +89,7 @@
         (if (eql regex 'repeat)
             (multiple-value-bind (r  s2)
                 (parse-regex-spec (cdr spec) s1)
+              (pprint r)
               (multiple-value-bind (s3 comma)
                   (remove-regex s2 "^\\s*,")
                 (if comma
@@ -114,23 +108,24 @@
                     (read-remove-regex-from-string  regex s1)
                   (multiple-value-bind (r1 s3)
                       (parse-regex-spec (cdr spec) s2)
-                    (values (cons r r1) s3))))))))
+                    (pprint r)
+                    (if r1 (values (cons r r1) s3)
+                        (values r  s3)))))))))
 
 (defparameter *merge-publics* nil)
 (defparameter %merge-publics% "\\bMERGEPUBLICS CLASSES\\b")
 (defparameter %seg-name% "^\\b[0-9A-Z_]+\\b")
 (defparameter %data-addr% "^\\bD?:?0X[0-9A-F]{2,8}-D?:?0X[0-9A-F]{2,8}\\b")
 (defparameter  %merge-publics-spec%
-  `(,%merge-publics% ((repeat ,%seg-name% (repeat ,%data-addr%)))))
+  `(,%merge-publics% (repeat ,%seg-name% (repeat ,%data-addr%))))
 
 (defparameter %overlay% "\\bOVERLAY\\b")
 (defparameter %overlay-name% "^\\b[0-9A-Z_*]+\\s+!")
 (defparameter %overlay-symbol-name% "^\\b[0-9A-Z_*?]+")
 (defparameter  %overlay-spec%
-  `(,%overlay% ((repeat ,%overlay-name% (repeat ,%overlay-symbol-name%)))))
+  `(,%overlay% (repeat ,%overlay-name% (repeat ,%overlay-symbol-name%))))
 
 (defun parse-linker-invoke-line (lines)
-  (setq *merge-publics* (parse-regex-spec %merge-publics-spec% lines))
 
   )
 
