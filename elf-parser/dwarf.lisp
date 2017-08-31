@@ -464,6 +464,6 @@
   "get dwarf debug info in elf file"
   (declare (optimize debug))
   (when (elf:named-section elf ".debug_str")
-    (setf  *debug-str* (elf:data (elf:named-section elf ".debug_str")))
-    (loop for offset in (dw-get-compile-unit-offset elf file sh)
-       nconc (dw-get-compile-unit-debug-info elf file offset sh))))
+    (setf  *debug-str* (elf:data (elf:named-section elf ".debug_str"))))
+  (loop for offset in (dw-get-compile-unit-offset elf file sh)
+     nconc (dw-get-compile-unit-debug-info elf file offset sh)))

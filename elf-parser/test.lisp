@@ -11,10 +11,17 @@
                                 (<= (elf:value sym) (cadr range))))
               addr-pairs)))
 
+(defparameter *rodata-start* 0)
+(defparameter *rodata-end* 0)
 (defun rodata-sym? (sym)
-  (let* ((rodata (elf:sh (elf:named-section *elf* "rodata")))
-         (rodata-start (elf:address rodata))
-         (rodata-end (+ rodata-start (elf:size rodata))))
+  (when (elf:named-section *elf* "rodata")
+    (let* ((rodata (elf:sh (elf:named-section *elf* "rodata")))
+           (rodata-start (elf:address rodata))
+           (rodata-end (+ rodata-start (elf:size rodata))))
+      (setq  *rodata-start*  rodata-start
+             *rodata-end* rodata-end)))
+  (let ((rodata-start *rodata-start*)
+        (rodata-end *rodata-end*))
     (and (>= (elf:value sym) rodata-start)
          (<= (elf:value sym) rodata-end))))
 

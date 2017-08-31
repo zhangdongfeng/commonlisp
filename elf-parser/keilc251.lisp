@@ -89,7 +89,6 @@
         (if (eql regex 'repeat)
             (multiple-value-bind (r  s2)
                 (parse-regex-spec (cdr spec) s1)
-              (pprint r)
               (multiple-value-bind (s3 comma)
                   (remove-regex s2 "^\\s*,")
                 (if comma
@@ -108,7 +107,6 @@
                     (read-remove-regex-from-string  regex s1)
                   (multiple-value-bind (r1 s3)
                       (parse-regex-spec (cdr spec) s2)
-                    (pprint r)
                     (if r1 (values (cons r r1) s3)
                         (values r  s3)))))))))
 
