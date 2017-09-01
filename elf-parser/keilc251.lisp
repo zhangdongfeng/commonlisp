@@ -43,7 +43,7 @@
       (setq *lines* (funcall proc path))
       nil)))
 
-(defparameter *file* #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP")
+(defparameter *keil-file* #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP")
 
 #+or
 (with-open-file (f #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP1"  :direction :output :if-exists :overwrite :if-does-not-exist :create)
@@ -73,59 +73,98 @@
 
 (defun read-remove-regex-from-string (regex string)
   (pprint regex)
-  (pprint (subseq string 0 10))
+  (pprint (subseq string 0 (min 20 (length string))))
   (let ((s1 (remove-regex string "^\\s*" )))
     (multiple-value-bind (m r)
         (scan-to-strings regex  s1)
+      (pprint m)
+      (format t "~%")
       (if m
           (values m  (remove-regex s1 regex))
           (values nil string)))))
 
-(defun  parse-regex-spec (spec  str)
+(defun mk-list (ele)
+  (if (listp ele)
+      ele
+      (cons ele nil)))
+
+(defun parse-regex-spec (spec  str)
   (if (null spec)
       (values nil str)
-      (let ((regex (car spec))
-            (s1 (remove-regex str "^\\s*\\(\\s*" )))
+      (let ((regex (car spec)))
         (if (eql regex 'repeat)
             (multiple-value-bind (r  s2)
-                (parse-regex-spec (cdr spec) s1)
+                (parse-regex-spec (cdr spec) str)
               (multiple-value-bind (s3 comma)
                   (remove-regex s2 "^\\s*,")
                 (if comma
                     (multiple-value-bind (r1 s4)
                         (parse-regex-spec spec  s3)
-                      (values (cons r r1) s4))
+                      (values (cons r (mk-list r1)) s4))
                     (values r s3))))
             (if (listp regex)
                 (multiple-value-bind (r s2)
-                    (parse-regex-spec regex s1)
+                    (parse-regex-spec regex
+                                      (remove-regex str "^\\s*\\(\\s*" ))
                   (let ((s3 (remove-regex s2 "^\\s*\\)\\s*" )))
                     (multiple-value-bind (r1 s4)
                         (parse-regex-spec (cdr spec) s3)
                       (values (cons r r1) s4))))
                 (multiple-value-bind (r s2)
-                    (read-remove-regex-from-string  regex s1)
+                    (read-remove-regex-from-string  regex str)
                   (multiple-value-bind (r1 s3)
                       (parse-regex-spec (cdr spec) s2)
                     (if r1 (values (cons r r1) s3)
                         (values r  s3)))))))))
 
-(defparameter *merge-publics* nil)
-(defparameter %merge-publics% "\\bMERGEPUBLICS CLASSES\\b")
-(defparameter %seg-name% "^\\b[0-9A-Z_]+\\b")
-(defparameter %data-addr% "^\\bD?:?0X[0-9A-F]{2,8}-D?:?0X[0-9A-F]{2,8}\\b")
-(defparameter  %merge-publics-spec%
-  `(,%merge-publics% (repeat ,%seg-name% (repeat ,%data-addr%))))
+(defun  parse-regex-spec-by-str (tag spec  string)
+  (multiple-value-bind (str found)
+      (remove-regex  string  tag)
+    (if found
+        (parse-regex-spec  spec str))))
 
-(defparameter %overlay% "\\bOVERLAY\\b")
-(defparameter %overlay-name% "^\\b[0-9A-Z_*]+\\s+!")
-(defparameter %overlay-symbol-name% "^\\b[0-9A-Z_*?]+")
-(defparameter  %overlay-spec%
-  `(,%overlay% (repeat ,%overlay-name% (repeat ,%overlay-symbol-name%))))
+(defparameter *merge-publics* nil)
+(defparameter %section-name% "^\\b[0-9A-Z_]+\\b")
+(defparameter %data-addr-range% "^\\bD?:?0X[0-9A-F]{2,8}-D?:?0X[0-9A-F]{2,8}\\b")
+(defparameter  *overlay* nil)
+(defparameter %symbol-name% "^\\b[0-9A-Z_*?]+")
+
+(defun parse-linker-invoke-line (invoke-str)
+  (let ((str invoke-str))
+    (multiple-value-setq (*merge-publics*  str)
+      (parse-regex-spec-by-str "\\bMERGEPUBLICS CLASSES\\b"
+                               `((repeat ,%section-name% (repeat ,%data-addr-range%)))
+                               str))
+    (multiple-value-setq (*overlay*  str)
+      (parse-regex-spec-by-str "\\bOVERLAY\\b"
+                               `((repeat ,%section-name% "\\s*!" (repeat ,%symbol-name%)))
+                               str))
+    str))
+
+(defparameter  *input-modules* nil)
+
+(defun parse-regex-spec-by-line (tag spec string)
+  (multiple-value-bind (str found)
+      (remove-regex  string  tag)
+    (if found
+        (let*  ((lines (split "\\x0d\\x0a" str)))
+          (remove-if #'null (loop for l in lines
+                               collect (parse-regex-spec spec l)))))))
+
+(defun parse-input-modules (module-str)
+  (setq *input-modules* (parse-regex-spec-by-line
+                         "\\bINPUT MODULES INCLUDED\\b"
+                         `("\\.\\\\[0-9A-Za-z_\\\\]+|C:\\\\[0-9A-Za-z_\\\\]+\\.LIB"
+                           "\\([0-9A-Za-z_?]+\\)")
+                         module-str)))
 
 (defun parse-linker-invoke-line (lines)
-
-  )
+  (let ((str lines))
+    (multiple-value-setq (*merge-publics*  str)
+      (parse-regex-spec %merge-publics-spec%  str))
+    (multiple-value-setq (*overlay*  str)
+      (parse-regex-spec %overlay-spec%  str))
+    str))
 
 (defparameter *invoke-str* nil)
 (defparameter *module-str* nil)
@@ -133,6 +172,8 @@
 (defparameter *memory-map-str* nil)
 (defparameter *symbol-str* nil)
 (defparameter *symbol-table-str* nil)
+
+
 (defun parse-lines (map-lines)
   (flet ((collect-linker-invoke-line (lines)
            (when (scan *invoke-line* (car lines))
@@ -142,7 +183,7 @@
                (cddr lines))))
          (collect-input-modules (lines)
            (let ((modules (nthcdr  4  lines)))
-             (loop with result = nil
+             (loop with result = (list (nth 3 lines))
                 for m on modules
                 when (scan "^  " (car m))
                 do (push (car  m) result)
