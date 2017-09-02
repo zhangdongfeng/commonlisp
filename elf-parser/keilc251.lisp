@@ -45,13 +45,7 @@
                            "\\([0-9A-Za-z_?]+\\)")
                          module-str)))
 
-(defun parse-linker-invoke-line (lines)
-  (let ((str lines))
-    (multiple-value-setq (*merge-publics*  str)
-      (parse-regex-spec %merge-publics-spec%  str))
-    (multiple-value-setq (*overlay*  str)
-      (parse-regex-spec %overlay-spec%  str))
-    str))
+
 
 (defparameter *invoke-str* nil)
 (defparameter *module-str* nil)
