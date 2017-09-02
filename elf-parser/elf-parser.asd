@@ -14,6 +14,7 @@
                (:file "dwarf")
                (:file "elf-parser")
                (:file "test")
+               (:file "regex-parser")
                (:file "keilc251"))
   )
 
