@@ -1,25 +1,19 @@
 (in-package :elf-parser)
 
-
 (defparameter %memory-class% "[0-9A-Z_]+\\b")
 (defparameter %data-addr-range% "D?:?0X[0-9A-F]{2,8}-D?:?0X[0-9A-F]{2,8}\\b")
 (defparameter %data-addr% "D?:?[0-9A-F]{2,8}H")
 (defparameter %data-length% %data-addr%)
 (defparameter %align%  "BYTE|ALN 1|ALN 2")
+(defparameter %symbol-type%  "---|FAR LAB|BIT|DWORD|WORD|BYTE")
 (defparameter %reloc%  "INSEG|UNIT|AT..")
 (defparameter %section-name%  "[0-9A-Z_*?]+")
-(defparameter %symbol-name% %section-name%)
-
-
-
+(defparameter %symbol-name% "[0-9A-Za-z_*?]+")
 
 #+or
 (with-open-file (f #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP1"  :direction :output :if-exists :overwrite :if-does-not-exist :create)
   (loop for line in *lines*
      do (write-line line  f)))
-
-
-
 
 (defparameter *blank-line-regex*  "^\\x0d*$")
 (defparameter *line-wrap*  "\\x0d*\\x0a>> ")
@@ -45,10 +39,7 @@
                          #'lines-to-string
                          #'remove-tricky-lines
                          #'read-file-into-lines)))
-      (setq *lines* (funcall proc path))
-      nil)))
-
-
+      (setq *lines* (funcall proc path)))))
 
 (defparameter *keil-file* #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP")
 (defparameter *lines* nil)
@@ -56,6 +47,8 @@
 (defparameter  *overlay* nil)
 (defparameter  *input-modules* nil)
 (defparameter *memory-map* nil)
+(defparameter *symbols* nil)
+
 
 (defparameter *invoke-str* nil)
 (defparameter *module-str* nil)
@@ -96,13 +89,21 @@
                            "MEMORY MAP OF MODULE:"
                            "PUBLIC SYMBOLS OF MODULE:"
                            str)
-     *memory-map* (parse-regex-spec-by-line
-                   "MEMORY MAP OF MODULE:"
-                   `(,%data-addr% ,%data-addr% ,%data-length%
-                                  ,%align% ,%reloc% ,%memory-class% ,%section-name% )
-                   *memory-map-str*)
+     *memory-map* (remove-if #'have-null-elements
+                             (parse-regex-spec-by-line
+                              "MEMORY MAP OF MODULE:"
+                              `(,%data-addr% ,%data-addr% ,%data-length%
+                                             ,%align% ,%reloc% ,%memory-class% ,%section-name% )
+                              *memory-map-str*))
      *symbol-str* (extract-by-marker
                    "PUBLIC SYMBOLS OF MODULE:"
                    "SYMBOL TABLE OF MODULE:"
-                   str)))
-  nil)
+                   str)
+     *symbols*  (remove-if #'have-null-elements
+                           (parse-regex-spec-by-line
+                            "PUBLIC SYMBOLS OF MODULE:"
+                            `(,%data-addr% ,%memory-class% ,%symbol-type%  ,%symbol-name% )
+                            *symbol-str*)))))
+
+(defun read-map (map-file)
+  (parse (pre-process map-file)))

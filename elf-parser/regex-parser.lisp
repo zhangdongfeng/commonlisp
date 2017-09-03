@@ -21,8 +21,8 @@
         (values  str nil))))
 
 (defun read-remove-regex-from-string-rcu (regex string collector)
-  (pprint regex)
-  (pprint (subseq string 0 10))
+
+
   (let ((s1 (remove-regex string "^\\s+" )))
     (multiple-value-bind (m r)
         (scan-to-strings regex  s1)
@@ -42,13 +42,15 @@
 
 (defun parse-regex-spec (spec  str)
   (flet ((read-remove-regex-from-string (regex string)
-           (pprint regex)
-           (pprint (subseq string 0 (min 20 (length string))))
+           (when *debug*
+             (pprint regex)
+             (pprint (subseq string 0 (min 20 (length string)))))
            (let ((s1 (remove-regex string "^\\s*" )))
              (multiple-value-bind (m r)
                  (scan-to-strings (concatenate 'string "^"  regex)   s1)
-               (pprint m)
-               (format t "~%")
+               (when *debug*
+                 (format t "~% result")
+                 (pprint m))
                (if m
                    (values m  (remove-regex s1 regex))
                    (values nil string))))))
