@@ -105,7 +105,12 @@
                              collect (parse-regex-spec spec l)))))))
 
 (defun extract-by-marker (start-regex end-regex string)
-  (let ((start (scan start-regex string))
-        (end (scan end-regex string)))
-    (if (and start end)
-        (subseq string start end))))
+  (let ((start (scan start-regex string)))
+    (if start
+        (let* ((ofs (length (scan-to-strings start-regex string)))
+               (end (scan end-regex (subseq string (+ start ofs)))))
+          (if end
+              (let ((real-end (+ start  end ofs)))
+                (values (subseq string start real-end )
+                        (subseq string real-end)))
+              (values nil  string))))))

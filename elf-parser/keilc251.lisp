@@ -56,6 +56,8 @@
 (defparameter *memory-map-str* nil)
 (defparameter *symbol-str* nil)
 (defparameter *symbol-table-str* nil)
+(defparameter *symbol-table* nil )
+
 
 (defun parse (lines)
   (let ((str (lines-to-string lines)))
@@ -89,21 +91,78 @@
                            "MEMORY MAP OF MODULE:"
                            "PUBLIC SYMBOLS OF MODULE:"
                            str)
-     *memory-map* (remove-if #'have-null-elements
-                             (parse-regex-spec-by-line
-                              "MEMORY MAP OF MODULE:"
-                              `(,%data-addr% ,%data-addr% ,%data-length%
-                                             ,%align% ,%reloc% ,%memory-class% ,%section-name% )
-                              *memory-map-str*))
+     *memory-map* (flet ((parse-map (sym)
+                           (let* ((addr (parse-integer (car sym) :radix 16 :junk-allowed t) )
+                                  (size (parse-integer (caddr sym) :radix 16 :junk-allowed t))
+                                  (memory (nth 5  sym))
+                                  (name (nth 6 sym))
+                                  (reg-group (nth-value 1
+                                                        (scan-to-strings "\\?(\\w+)\\?*(\\w*)\\?*(\\w*)" name))))
+                             (destructuring-bind (type class module)
+                                 (coerce reg-group 'list)
+                               (list addr size memory type class module name)))))
+                    (let ((string-syms
+                           (remove-if #'have-null-elements
+                                      (parse-regex-spec-by-line
+                                       "MEMORY MAP OF MODULE:"
+                                       `(,%data-addr% ,%data-addr% ,%data-length%
+                                                      ,%align% ,%reloc% ,%memory-class% ,%section-name% )
+                                       *memory-map-str*))))
+                      (stable-sort (mapcar #'parse-map string-syms) #'< :key #'car)))
+
      *symbol-str* (extract-by-marker
                    "PUBLIC SYMBOLS OF MODULE:"
                    "SYMBOL TABLE OF MODULE:"
                    str)
-     *symbols*  (remove-if #'have-null-elements
-                           (parse-regex-spec-by-line
-                            "PUBLIC SYMBOLS OF MODULE:"
-                            `(,%data-addr% ,%memory-class% ,%symbol-type%  ,%symbol-name% )
-                            *symbol-str*)))))
+
+     *symbols* (flet ((parse-sym (sym)
+                        (list
+                         (parse-integer (car sym) :radix 16 :junk-allowed t)
+                         (cadr sym)
+                         (cadddr sym))))
+                 (let ((string-syms
+                        (remove-if #'have-null-elements
+                                   (parse-regex-spec-by-line
+                                    "PUBLIC SYMBOLS OF MODULE:"
+                                    `(,%data-addr% ,%memory-class% ,%symbol-type%  ,%symbol-name% )
+                                    *symbol-str*))))
+                   (stable-sort (mapcar #'parse-sym string-syms) #'< :key #'car)))
+
+     *symbol-table-str* (extract-by-marker
+                         "SYMBOL TABLE OF MODULE:"
+                         "Program Size: data="
+                         str)
+
+     *symbol-table* (flet ((parse-sym (sym)
+                             (list
+                              (parse-integer (car sym) :radix 16 :junk-allowed t)
+                              (cadr sym)
+                              (cadddr sym))))
+                      (let ((string-syms
+                             (remove-if #'have-null-elements
+                                        (parse-regex-spec-by-line
+                                         "SYMBOL TABLE OF MODULE:"
+                                         `(,%data-addr% ,%memory-class% ,%symbol-type%  ,%symbol-name% )
+                                         *symbol-str*))))
+                        (stable-sort (mapcar #'parse-sym string-syms) #'< :key #'car))))))
+
+
+(defun parse-symbol-table (sym-tbl)
+  (loop with result = nil
+     with str =  sym-tbl
+     with res-str = nil
+     do (progn
+          (multiple-value-bind (res  rest-str)
+              (extract-by-marker
+               "---         MODULE    ---      ---       "
+               "---         MODULE    ---      ---       "
+               str)
+            (push res  result)
+            (setq str rest-str
+                  res-str res)))
+     when (not res-str)
+     return (nreverse result)))
+
 
 (defun read-map (map-file)
   (parse (pre-process map-file)))

@@ -78,7 +78,7 @@
     (mapc
      #'(lambda (trio)
          (metabang-bind:bind (((beg size name) trio))
-                             (format t "~&0x~x ~18a 0x~x  ~D  ~%" beg name (+ beg size) size )))
+           (format t "~&0x~x ~18a 0x~x  ~D  ~%" beg name (+ beg size) size )))
      (stable-sort
       (remove-if
        #'(lambda (trio) (zerop (second trio)))
@@ -92,35 +92,13 @@
       #'< :key #'car)))
   nil)
 
-
+#+ (or)
 (defun dump-symbol-list (sym-list)
   (loop for sym in sym-list
-        do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
-                   (elf:value sym) (elf:size sym) (elf:type sym)
-                   (elf:binding sym)
-                   (elf:sym-name sym))))
-
-(defun get-all-file-symbols (tags)
-  "get all soruce file global symbols,
-tag: list of dwarf tag
-==> \(file-name \("
-  (let* ((syms (mapcar #'(lambda (compile-unit)
-                           (funcall #'find-symbols compile-unit tags))
-                       *debug-infos*)))
-    (mapcar #'(lambda (f)
-                (list f (find-by-name f syms)))
-            *all-files*)))
-
-(defun find-by-name (name infos)
-  "collect all debug info symbols of the same file
-name: file path
-info: dwarf debug info
-==>list elf-symblos"
-  (loop for unit in infos
-     when (string= name (car unit))
-     nconc (cadr unit)))
-
-
+     do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
+                (elf:value sym) (elf:size sym) (elf:type sym)
+                (elf:binding sym)
+                (elf:sym-name sym))))
 
 (defun show-debug-module-symbols (modules &optional &key
                                                       (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil))

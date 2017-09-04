@@ -1,5 +1,4 @@
 (in-package :elf-parser)
-
 (defparameter *endian* :little)
 
 (defun bytes-to-int (bytes &optional signed-p &aux steps)
@@ -459,11 +458,10 @@
 (defparameter *debug-str* nil)
 (defparameter *debug* nil)
 
-
 (defun dw-get-debug-info (elf file sh)
   "get dwarf debug info in elf file"
   (declare (optimize debug))
-  (when (elf:named-section elf ".debug_str")
-    (setf  *debug-str* (elf:data (elf:named-section elf ".debug_str"))))
-  (loop for offset in (dw-get-compile-unit-offset elf file sh)
-     nconc (dw-get-compile-unit-debug-info elf file offset sh)))
+  (let (( *debug-str* (if (elf:named-section elf ".debug_str")
+                          (elf:data  (elf:named-section elf ".debug_str")))))
+    (loop for offset in (dw-get-compile-unit-offset elf file sh)
+       nconc (dw-get-compile-unit-debug-info elf file offset sh))))
