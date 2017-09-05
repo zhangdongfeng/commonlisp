@@ -78,11 +78,13 @@
                    "INPUT MODULES INCLUDED:"
                    "ACTIVE MEMORY CLASSES OF MODULE"
                    str)
-     *input-modules* (parse-regex-spec-by-line
-                      "\\bINPUT MODULES INCLUDED\\b"
-                      `("\\.\\\\[0-9A-Za-z_\\\\]+\\.[objLIB]{3}|C:\\\\[0-9A-Za-z_\\\\]+\\.LIB|\\.\\\\[0-9A-Za-z_\\\\]+"
-                        "\\([0-9A-Za-z_?]+\\)")
-                      *module-str*)
+     *input-modules* (flet ((remove-brackets (m)
+                              (list (car m) (subseq (cadr m) 1 (1- (length (cadr m)))))))
+                       (mapcar #'remove-brackets (parse-regex-spec-by-line
+                                                  "\\bINPUT MODULES INCLUDED\\b"
+                                                  `("\\.\\\\[0-9A-Za-z_\\\\]+\\.[objLIB]{3}|C:\\\\[0-9A-Za-z_\\\\]+\\.LIB|\\.\\\\[0-9A-Za-z_\\\\]+"
+                                                    "\\([0-9A-Za-z_?]+\\)")
+                                                  *module-str*)))
      *memory-str* (extract-by-marker
                    "ACTIVE MEMORY CLASSES OF MODULE"
                    "MEMORY MAP OF MODULE:"
@@ -133,21 +135,27 @@
                          "Program Size: data="
                          str)
 
-     *symbol-table* (flet ((parse-sym (sym)
-                             (list
-                              (parse-integer (car sym) :radix 16 :junk-allowed t)
-                              (cadr sym)
-                              (cadddr sym))))
-                      (let ((string-syms
-                             (remove-if #'have-null-elements
-                                        (parse-regex-spec-by-line
-                                         "SYMBOL TABLE OF MODULE:"
-                                         `(,%data-addr% ,%memory-class% ,%symbol-type%  ,%symbol-name% )
-                                         *symbol-str*))))
-                        (stable-sort (mapcar #'parse-sym string-syms) #'< :key #'car))))))
+     *symbol-table* (flet ((collect-module-symbol-table (sym-tbl)
+                             (loop with result = nil
+                                with str =  sym-tbl
+                                with res-str = nil
+                                do (progn
+                                     (multiple-value-bind (res  rest-str)
+                                         (extract-by-marker
+                                          "---         MODULE    ---      ---       "
+                                          "---         MODULE    ---      ---       "
+                                          str)
+                                       (push res  result)
+                                       (setq str rest-str
+                                             res-str res)))
+                                when (not res-str)
+                                return (nreverse result))))
+                      (mapcar #'parse-module-symbol-table (collect-module-symbol-table *symbol-table-str*))))
+    (set-elf-symbol-size *symbol-table* )
+    nil))
 
 
-(defun parse-symbol-table (sym-tbl)
+(defun collect-module-symbol-table (sym-tbl)
   (loop with result = nil
      with str =  sym-tbl
      with res-str = nil
@@ -162,6 +170,42 @@
                   res-str res)))
      when (not res-str)
      return (nreverse result)))
+
+(defun parse-module-symbol-table (module-str)
+  (let* ((module-name (nth-value 1
+                                 (scan-to-strings "---         MODULE    ---      ---       (\\S+)" module-str))))
+    (if module-name
+        (let* ((file-name (car (find (elt module-name 0 )  *input-modules* :key #'cadr :test #'string=)))
+               (symbols (remove-if #'have-null-elements
+                                   (parse-regex-spec-by-line
+                                    "---         MODULE    ---      ---       "
+                                    `(,%data-addr% "PUBLIC|SYMBOL" "ECODE|EDATA|HCONST"  "FAR LAB|---|BYTE|INT|WORD|DWORD"  ,%symbol-name% )
+                                    module-str))))
+          (pprint file-name)
+          (list file-name
+                (loop for sym-str in symbols
+                   collect (let ((sym (make-instance 'elf::elf-sym-32)))
+                             (setf (elf:value sym) (parse-integer (car sym-str) :radix 16 :junk-allowed t))
+                             (setf (elf:info sym) (if (string= (caddr sym-str) "ECODE") 2 1))
+                             (setf (elf:sym-name sym) (nth 4 sym-str))
+                             sym)))))))
+
+
+(defun dump-symbol-list (f)
+  (loop for sym in (cadr f)
+     do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
+                (elf:value sym) (elf:size sym) (elf:type sym)
+                (elf:binding sym)
+                (elf:sym-name sym))))
+
+(defun set-elf-symbol-size (file-syms)
+  (let* ((all-sym (flatten (loop for s in file-syms
+                              collect (cadr s))))
+         (sorted-sym (stable-sort all-sym #'<  :key #'elf:value)))
+    (reduce #'(lambda (x y)
+                (setf (elf:size x) (- (elf:value y) (elf:value x)))
+                y)
+            (cdr sorted-sym)  :initial-value (car sorted-sym))))
 
 
 (defun read-map (map-file)

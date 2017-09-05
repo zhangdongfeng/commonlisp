@@ -99,6 +99,18 @@
                 (elf:value sym) (elf:size sym) (elf:type sym)
                 (elf:binding sym)
                 (elf:sym-name sym))))
+(defparameter *get-all-text-symbols*
+  (lambda ()
+    (get-all-file-symbols '(dw_tag_subprogram))))
+
+(defparameter *get-all-data-symbols*
+  (lambda ()
+    (get-all-file-symbols '(dw_tag_variable))))
+
+(defparameter *overlay-pred* #'overlay-sym?)
+(defparameter *rodata-pred* #'rodata-sym?)
+
+
 
 (defun show-debug-module-symbols (modules &optional &key
                                                       (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil))
@@ -108,8 +120,8 @@ dump-file: should also dump file info
 dump-symblo: should also dump sysmbols
 path: path filter"
   (declare (optimize debug))
-  (let* ((all-code-files (get-all-file-symbols '(dw_tag_subprogram)))
-         (all-data-files (get-all-file-symbols '(dw_tag_variable))))
+  (let* ((all-code-files (funcall *get-all-text-symbols*))
+         (all-data-files (funcall *get-all-data-symbols*)))
     (flet ((dump-code-data (module codes datas)
              (flet ((sum-syms (f) (loop for s in (cadr f)  sum (elf:size s)))
                     (dump-symbol-list (f)
@@ -118,8 +130,8 @@ path: path filter"
                                     (elf:value sym) (elf:size sym) (elf:type sym)
                                     (elf:binding sym)
                                     (elf:sym-name sym)))))
-               (let* ((module-rodatas (mapcar  (alexandria:curry #'sym-filter #'rodata-sym?) datas))
-                      (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter #'overlay-sym?) datas))
+               (let* ((module-rodatas (mapcar  (alexandria:curry #'sym-filter *rodata-pred*) datas))
+                      (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter *overlay-pred*) datas))
                       (module-datas (mapcar (alexandria:curry #'sym-filter
                                                               #'(lambda (s) (and (not (rodata-sym? s))
                                                                             (not (overlay-sym? s)))))
