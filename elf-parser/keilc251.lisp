@@ -48,8 +48,6 @@
 (defparameter  *input-modules* nil)
 (defparameter *memory-map* nil)
 (defparameter *symbols* nil)
-
-
 (defparameter *invoke-str* nil)
 (defparameter *module-str* nil)
 (defparameter *memory-str* nil)
@@ -231,4 +229,21 @@
                   (elf:sym-name sym)))))
 
 (defun read-map (map-file)
-  (parse (pre-process map-file)))
+  (parse (pre-process map-file))
+  (setq *get-all-text-symbols* (curry #'get-mapfile-all-symbols-by-type :func)
+        *get-all-data-symbols* (curry #'get-mapfile-all-symbols-by-type :object)
+        *rodata-pred* #'(lambda (sym)
+                          (> (elf:value sym) #x10000))
+        *overlay-pred* #'(lambda (sym) nil)))
+
+(defun get-mapfile-all-symbols-by-type (type)
+  (mapcar #'(lambda (m)
+              (let* ((f (car m))
+                     (syms (cadr m))
+                     (funcs (loop with res = nil
+                               for s in syms
+                               when (eql (elf:type s) type)
+                               do (push s res)
+                               finally (return (nreverse res)))))
+                (list f funcs)))
+          *symbol-table*)  )
