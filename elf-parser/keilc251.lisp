@@ -53,6 +53,7 @@
 (defparameter *invoke-str* nil)
 (defparameter *module-str* nil)
 (defparameter *memory-str* nil)
+(defparameter *memory-class* nil)
 (defparameter *memory-map-str* nil)
 (defparameter *symbol-str* nil)
 (defparameter *symbol-table-str* nil)
@@ -89,6 +90,19 @@
                    "ACTIVE MEMORY CLASSES OF MODULE"
                    "MEMORY MAP OF MODULE:"
                    str)
+     *memory-class* (flet ((parse (sym)
+                             (let* ((addr (parse-integer (cadr sym) :radix 16 :junk-allowed t) )
+                                    (size (parse-integer (cadddr sym) :radix 16 :junk-allowed t))
+                                    (name (nth 4 sym)))
+                               (list addr size  name))))
+                      (let ((string-syms
+                             (remove-if #'have-null-elements
+                                        (parse-regex-spec-by-line
+                                         "ACTIVE MEMORY CLASSES OF MODULE"
+                                         `(,%data-addr% ,%data-addr%  ,%data-addr%  ,%data-length% ,%section-name% )
+                                         *memory-str*))))
+                        (stable-sort (mapcar #'parse string-syms) #'< :key #'car)))
+
      *memory-map-str*     (extract-by-marker
                            "MEMORY MAP OF MODULE:"
                            "PUBLIC SYMBOLS OF MODULE:"
@@ -154,7 +168,6 @@
     (set-elf-symbol-size *symbol-table* )
     nil))
 
-
 (defun collect-module-symbol-table (sym-tbl)
   (loop with result = nil
      with str =  sym-tbl
@@ -190,23 +203,32 @@
                              (setf (elf:sym-name sym) (nth 4 sym-str))
                              sym)))))))
 
-
-(defun dump-symbol-list (f)
-  (loop for sym in (cadr f)
-     do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
-                (elf:value sym) (elf:size sym) (elf:type sym)
-                (elf:binding sym)
-                (elf:sym-name sym))))
-
 (defun set-elf-symbol-size (file-syms)
+  (flet ((find-memory-class-by-addr (addr)
+           (let ((result  (loop for m in *memory-class*
+                             when (<= addr (+ (car m) (cadr m)))
+                             return (+ (car m) (cadr m)))))
+             (if result  result #xffffff))))
+    (let* ((all-sym (flatten (loop for s in file-syms
+                                collect (cadr s))))
+           (sorted-sym (stable-sort all-sym #'<  :key #'elf:value)))
+      (mapc #'(lambda (sym)
+                (setf (elf:size sym) 0)) sorted-sym)
+      (reduce #'(lambda (x y)
+                  (setf (elf:size x) (min (- (elf:value y) (elf:value x))
+                                          (- (find-memory-class-by-addr (elf:value x)) (elf:value x))))
+                  y)
+              (cdr sorted-sym)  :initial-value (car sorted-sym)))))
+
+(defun  dump-symbols-by-addr (file-syms)
   (let* ((all-sym (flatten (loop for s in file-syms
                               collect (cadr s))))
          (sorted-sym (stable-sort all-sym #'<  :key #'elf:value)))
-    (reduce #'(lambda (x y)
-                (setf (elf:size x) (- (elf:value y) (elf:value x)))
-                y)
-            (cdr sorted-sym)  :initial-value (car sorted-sym))))
-
+    (loop for sym in sorted-sym
+       do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
+                  (elf:value sym) (elf:size sym) (elf:type sym)
+                  (elf:binding sym)
+                  (elf:sym-name sym)))))
 
 (defun read-map (map-file)
   (parse (pre-process map-file)))
