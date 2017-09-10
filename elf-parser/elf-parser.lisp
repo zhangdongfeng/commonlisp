@@ -50,11 +50,19 @@ tag: list of dwarf tag
                  (ecase (die-tag entry)
                    (dw_tag_subprogram
                     (with-dw-att-name
-                        ( dw_at_name  DW_AT_high_pc ) (die-attr entry)
+                        ( dw_at_name  DW_AT_high_pc  DW_AT_low_pc) (die-attr entry)
                       (when dw_at_high_pc
-                        (push (find dw_at_name  symbols
-                                    :key #'elf:sym-name :test #'string=)
-                              res))))
+                        (let* ((public-sym (find dw_at_name  symbols
+                                                 :key #'elf:sym-name :test #'string=)))
+                          (if public-sym
+                              (push public-sym res)
+                              (let ((sym (make-instance 'elf::elf-sym-32)))
+                                (setf (elf:value sym) dw_at_low_pc )
+                                (setf (elf:size sym) (- dw_at_high_pc dw_at_low_pc) )
+                                (setf (elf:info sym) 2)
+                                (setf (elf:sym-name sym) dw_at_name)
+                                (if (>  (elf:size sym) 0)
+                                    (push sym res))))))))
                    (dw_tag_variable
                     (with-dw-att-name
                         (dw_at_name DW_AT_location) (die-attr entry)
