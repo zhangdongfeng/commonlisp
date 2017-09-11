@@ -9,6 +9,8 @@
 (defparameter %reloc%  "INSEG|UNIT|AT..")
 (defparameter %section-name%  "[0-9A-Z_*?]+")
 (defparameter %symbol-name% "[0-9A-Za-z_*?]+")
+(defparameter %file-name% "[0-9A-Za-z_]+")
+(defparameter %obj-file-name% "[0-9A-Za-z_]+\\.o")
 
 #+or
 (with-open-file (f #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP1"  :direction :output :if-exists :overwrite :if-does-not-exist :create)

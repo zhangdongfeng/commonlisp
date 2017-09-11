@@ -21,8 +21,6 @@
         (values  str nil))))
 
 (defun read-remove-regex-from-string-rcu (regex string collector)
-
-
   (let ((s1 (remove-regex string "^\\s+" )))
     (multiple-value-bind (m r)
         (scan-to-strings regex  s1)
@@ -99,7 +97,7 @@
   (multiple-value-bind (str found)
       (remove-regex  string  tag)
     (if found
-        (let*  ((lines (split "\\x0d\\x0a" str)))
+        (let*  ((lines (split "\\x0d*\\x0a" str)))
           (remove-if-not  #'list-have-elements
                           (loop for l in lines
                              collect (parse-regex-spec spec l)))))))
@@ -113,4 +111,4 @@
               (let ((real-end (+ start  end ofs)))
                 (values (subseq string start real-end )
                         (subseq string real-end)))
-              (values nil  string))))))
+              (values (subseq string start)  nil))))))

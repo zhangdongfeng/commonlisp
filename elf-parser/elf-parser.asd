@@ -15,6 +15,8 @@
                (:file "elf-parser")
                (:file "test")
                (:file "regex-parser")
-               (:file "keilc251"))
+               (:file "keilc251")
+               (:file "nm")
+               )
   )
 
