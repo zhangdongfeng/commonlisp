@@ -20,7 +20,7 @@
 (defparameter *blank-line-regex*  "^\\x0d*$")
 (defparameter *line-wrap*  "\\x0d*\\x0a>> ")
 (defparameter *invoke-line* "\\bINVOKED BY:")
-(defun pre-process (path)
+(defun keil-pre-process (path)
   (flet ((read-file-into-lines (path)
            (with-open-file (f path )
              (loop for line = (read-line f  nil nil)
@@ -60,7 +60,7 @@
 (defparameter *symbol-table* nil )
 
 
-(defun parse (lines)
+(defun keil-parse (lines)
   (let ((str (lines-to-string lines)))
     (setq
      *invoke-str* (extract-by-marker
@@ -164,27 +164,13 @@
                                              res-str res)))
                                 when (not res-str)
                                 return (nreverse result))))
-                      (mapcar #'parse-module-symbol-table (collect-module-symbol-table *symbol-table-str*))))
-    (set-elf-symbol-size *symbol-table* )
+                      (mapcar #'keil-parse-module-symbol-table (collect-module-symbol-table *symbol-table-str*))))
+    (keil-set-elf-symbol-size *symbol-table* )
     nil))
 
-(defun collect-module-symbol-table (sym-tbl)
-  (loop with result = nil
-     with str =  sym-tbl
-     with res-str = nil
-     do (progn
-          (multiple-value-bind (res  rest-str)
-              (extract-by-marker
-               "---         MODULE    ---      ---       "
-               "---         MODULE    ---      ---       "
-               str)
-            (push res  result)
-            (setq str rest-str
-                  res-str res)))
-     when (not res-str)
-     return (nreverse result)))
 
-(defun parse-module-symbol-table (module-str)
+
+(defun keil-parse-module-symbol-table (module-str)
   (let* ((module-name (nth-value 1
                                  (scan-to-strings "---         MODULE    ---      ---       (\\S+)" module-str))))
     (if module-name
@@ -203,7 +189,7 @@
                              (setf (elf:sym-name sym) (nth 4 sym-str))
                              sym)))))))
 
-(defun set-elf-symbol-size (file-syms)
+(defun keil-set-elf-symbol-size (file-syms)
   (flet ((find-memory-class-by-addr (addr)
            (let ((result  (loop for m in *memory-class*
                              when (<= addr (+ (car m) (cadr m)))
@@ -230,15 +216,18 @@
                   (elf:binding sym)
                   (elf:sym-name sym)))))
 
-(defun read-map (map-file)
-  (parse (pre-process map-file))
-  (setq *get-all-text-symbols* (curry #'get-mapfile-all-symbols-by-type :func)
-        *get-all-data-symbols* (curry #'get-mapfile-all-symbols-by-type :object)
-        *rodata-pred* #'(lambda (sym)
-                          (> (elf:value sym) #x10000))
-        *overlay-pred* #'(lambda (sym) nil)))
 
-(defun get-mapfile-all-symbols-by-type (type)
+
+#+ (or)
+(let ((*get-all-text-symbols* (curry #'get-mapfile-all-symbols-by-type :func))
+      (*get-all-data-symbols* (curry #'get-mapfile-all-symbols-by-type :object))
+      (*rodata-pred* #'(lambda (sym)
+                         (> (elf:value sym) #x10000)))
+      ( *overlay-pred* #'(lambda (sym) nil)))
+  (show-debug-module-symbols nil ))
+
+
+(defun keil-get-mapfile-all-symbols-by-type (type)
   (mapcar #'(lambda (m)
               (let* ((f (car m))
                      (syms (cadr m))
@@ -248,4 +237,17 @@
                                do (push s res)
                                finally (return (nreverse res)))))
                 (list f funcs)))
-          *symbol-table*)  )
+          *symbol-table*))
+
+(defmacro keil-show-symbols ( &rest args)
+  `(funcall  #'show-debug-module-symbols  ,@args
+             :get-text-func (curry #'keil-get-mapfile-all-symbols-by-type :func)
+             :get-data-func (curry #'keil-get-mapfile-all-symbols-by-type :object)
+             :rodata-pred #'(lambda (sym)
+                              (> (elf:value sym) #x10000))
+             :overlay-pred #'(lambda (sym) nil)))
+
+
+(defun keil-read-map (map-file)
+  (keil-parse (keil-pre-process map-file))
+  )

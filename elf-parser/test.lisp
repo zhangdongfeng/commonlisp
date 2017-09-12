@@ -113,15 +113,15 @@
 
 
 (defun show-debug-module-symbols (modules &optional &key
-                                                      (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil))
+                                                      (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil) (get-text-func *get-all-text-symbols*) (get-data-func *get-all-data-symbols* ) (rodata-pred #'rodata-sym?) (overlay-pred *overlay-pred*))
   "show  debug symbols info in dwarf .debug_info section
 threshod: optional, the threshold size to dump info
 dump-file: should also dump file info
 dump-symblo: should also dump sysmbols
 path: path filter"
   (declare (optimize debug))
-  (let* ((all-code-files (funcall *get-all-text-symbols*))
-         (all-data-files (funcall *get-all-data-symbols*)))
+  (let* ((all-code-files (funcall get-text-func))
+         (all-data-files (funcall get-data-func)))
     (flet ((dump-code-data (module codes datas)
              (flet ((sum-syms (f) (loop for s in (cadr f)  sum (elf:size s)))
                     (dump-symbol-list (f)
@@ -130,11 +130,11 @@ path: path filter"
                                     (elf:value sym) (elf:size sym) (elf:type sym)
                                     (elf:binding sym)
                                     (elf:sym-name sym)))))
-               (let* ((module-rodatas (mapcar  (alexandria:curry #'sym-filter *rodata-pred*) datas))
-                      (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter *overlay-pred*) datas))
+               (let* ((module-rodatas (mapcar  (alexandria:curry #'sym-filter rodata-pred) datas))
+                      (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter overlay-pred) datas))
                       (module-datas (mapcar (alexandria:curry #'sym-filter
-                                                              #'(lambda (s) (and (not (rodata-sym? s))
-                                                                            (not (overlay-sym? s)))))
+                                                              #'(lambda (s) (and (not (funcall rodata-pred s))
+                                                                            (not (funcall overlay-pred s)))))
                                             datas)))
                  (flet ((dump-file-info(f)
                           (let* ((name (car f))
