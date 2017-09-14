@@ -71,6 +71,47 @@
 
 
 realtek
+(nm-parse *sdio-nm-file*)
 
 
 aihora
+(keil-show-symbols '("COMMON" "ommon"
+                     "251"
+                     "udio"
+                     "oice"
+                     "\\DSP"
+                     "Air"
+                     "\\MMI"
+                     "\\sector"
+                     "DRIVER"
+                     "river_"
+                     "ROM\\LL"
+                     "\\HC"
+                     "\\LM"
+                     "\\LC"
+                     "\\L2CAP"
+                     "\\GAP"
+                     "\\SAP"
+                     "SDAP"
+                     "\\OBEX"
+                     "\\OPP"
+                     "\\PBAP"
+                     "\\MAP"
+                     "\\SPP"
+                     "\\HFP"
+                     "\\LCIF"
+                     "\\A2DP"
+                     "AVRCP"
+                     "\\RFCOMM"
+                     "\\AVCTP"
+                     "\\AVDTP"
+                     "\\SM"
+                     "\\ATT"
+                     "\\HID"
+                     "\\iAP2"
+                     "\\SongPal"
+                     "_Rom_Only"
+                     "Patch"
+                     "Peq"
+                     "APP"
+                     ) :dump-file t)
