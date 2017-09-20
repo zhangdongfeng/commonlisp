@@ -44,6 +44,7 @@
       (setq *lines* (funcall proc path)))))
 
 (defparameter *keil-file* #p "/Users/zhangdongfeng/Downloads/airaha/AB1520S_SVN72747_Headset_OBJ/output/AB1520S/Release_Flash/BTStereoHeadset_AB1520S_FlashLinkRom.MAP")
+(defparameter *keil-file2* #p "/Users/zhangdongfeng/Downloads/BTStereoHeadset_AB1520S_FlashLinkRom.MAP")
 (defparameter *lines* nil)
 (defparameter *merge-publics* nil)
 (defparameter  *overlay* nil)
@@ -216,6 +217,16 @@
                   (elf:binding sym)
                   (elf:sym-name sym)))))
 
+(defun  dump-symbols-by-name (file-syms)
+  (let* ((all-sym (flatten (loop for s in file-syms
+                              collect (cadr s))))
+         (sorted-sym (stable-sort all-sym #'string<  :key #'elf:sym-name)))
+    (loop for sym in sorted-sym
+       do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
+                  (elf:value sym) (elf:size sym) (elf:type sym)
+                  (elf:binding sym)
+                  (elf:sym-name sym)))))
+
 
 
 #+ (or)
@@ -247,7 +258,20 @@
                               (> (elf:value sym) #x10000))
              :overlay-pred #'(lambda (sym) nil)))
 
+(defparameter *keil-map-symbol1* nil)
+(defparameter *keil-map-symbol2* nil)
+
+(defun keil-diff-symbols (file1  file2)
+  (keil-parse (keil-pre-process file1))
+  (setq *keil-map-symbol1* *symbol-table*)
+  (keil-parse (keil-pre-process file2))
+  (setq *keil-map-symbol2* *symbol-table*)
+  (let* ((all-sym1 (flatten (loop for s in *keil-map-symbol1*
+                               collect (cadr s))))
+         (all-sym2 (flatten (loop for s in *keil-map-symbol2*
+                               collect (cadr s))))
+         (intersect (intersection all-sym1  all-sym2  :key #'elf:sym-name :test #'string=)))
+    (set-difference all-sym2 intersect  :key #'elf:sym-name :test #'string= )))
 
 (defun keil-read-map (map-file)
-  (keil-parse (keil-pre-process map-file))
-  )
+  (keil-parse (keil-pre-process map-file)))
