@@ -1,6 +1,6 @@
 (in-package :elf-parser)
 
-(defparameter *nm-file* #p "/Users/zhangdongfeng/Downloads/00005078-SDK-patch_RTL8189FTV_v02.6_v12728_SDIO/release-v02.6/component/common/drivers/wlan/realtek/wlan_lib/cortex-m/mdk/wlan_nm.lst")
+(defparameter *nm-file* #p "/Users/zhangdongfeng/Downloads/WLAN_LIB/wlanlib27_nm.txt")
 
 (defparameter *sdio-nm-file* #p "/Users/zhangdongfeng/Downloads/00005078-SDK-patch_RTL8189FTV_v02.6_v12728_SDIO/release-v02.6/component/common/drivers/wlan/realtek/wlan_lib/cortex-m/mdk/sdio_nm.lst")
 
@@ -28,16 +28,7 @@
 (defparameter *undefine-symbols* nil)
 (defparameter *define-symbols* nil)
 
-(defun nm-parse (path)
-  (let* ((lines (nm-pre-process path))
-         (modules (nm-collect-module (lines-to-string lines))))
-    (setq
-     *undefine-symbols* (nm-all-undefined-symbos modules)
-     *define-symbols* (nm-all-defined-symbos modules))
-    (delete-duplicates (stable-sort (remove-if #'(lambda (s) (find s *define-symbols* :test #'string=))
-                                               *undefine-symbols*)
-                                    #'string< )
-                       :test #'string=)))
+
 
 (defun nm-all-defined-symbos (modules)
   (flet ((nm-parse-sym (str)
@@ -75,6 +66,16 @@
      when (not res-str)
      return (nreverse result)))
 
+(defun nm-parse (path)
+  (let* ((lines (nm-pre-process path))
+         (modules (nm-collect-module (lines-to-string lines))))
+    (setq
+     *undefine-symbols* (nm-all-undefined-symbos modules)
+     *define-symbols* (nm-all-defined-symbos modules))
+    (delete-duplicates (stable-sort (remove-if #'(lambda (s) (find s *define-symbols* :test #'string=))
+                                               *undefine-symbols*)
+                                    #'string< )
+                       :test #'string=)))
 
 
 #+or
