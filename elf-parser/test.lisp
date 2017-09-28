@@ -122,22 +122,12 @@ path: path filter"
          (all-data-files (funcall get-data-func)))
     (flet ((dump-code-data (module codes datas)
              (flet ((sum-syms (f) (loop for s in (cadr f)  sum (elf:size s)))
-                    (dump-symbol-list (f)
-                      (let* ((syms (remove-if-not #'(lambda (sym)
-                                                      (and
-                                                       (if sym-type
-                                                           (eql sym-type (elf:type sym)) t)
-                                                       (if (and no-rodata
-                                                                (eql :object (elf:type sym)))
-                                                           (not (funcall rodata-pred sym))
-                                                           t)
-                                                       (> (elf:size sym) threshold)))
-                                                  (cadr f))))
-                        (loop for sym in syms
-                           do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
-                                      (elf:value sym) (elf:size sym) (elf:type sym)
-                                      (elf:binding sym)
-                                      (elf:sym-name sym))))))
+                    (dump-symbol-list (syms)
+                      (loop for sym in syms
+                         do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
+                                    (elf:value sym) (elf:size sym) (elf:type sym)
+                                    (elf:binding sym)
+                                    (elf:sym-name sym)))))
                (let* ((module-rodatas (mapcar  (alexandria:curry #'sym-filter rodata-pred) datas))
                       (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter overlay-pred) datas))
                       (module-datas (mapcar (alexandria:curry #'sym-filter
@@ -150,10 +140,26 @@ path: path filter"
                                  (rodata-file (find-if #'(lambda (x) (string= (car f) (car x))) module-rodatas))
                                  (overlay-file (find-if #'(lambda (x) (string= (car f) (car x))) module-overlay-datas))
                                  (short-name (if (search prefix name) (subseq name  (length prefix)) name)))
-                            (format t "~&| ~a~{~T|~:D~}|~%" short-name
-                                    (mapcar #'sum-syms (list  f  data-file rodata-file overlay-file)))
-                            (when dump-symbol (mapc #'dump-symbol-list
-                                                    (list  f  data-file rodata-file overlay-file))))))
+                            (flet ((merge-all (file-list)
+                                     (list (caar file-list)
+                                           (loop for f in file-list
+                                              nconc (cadr f))))
+                                   (should-dump? (sym)
+                                     (and
+                                      (if sym-type
+                                          (eql sym-type (elf:type sym)) t)
+                                      (if (and no-rodata
+                                               (eql :object (elf:type sym)))
+                                          (not (funcall rodata-pred sym))
+                                          t)
+                                      (> (elf:size sym) threshold))))
+                              (let ((sym-list (remove-if-not #'should-dump?
+                                                             (cadr (merge-all (list  f  data-file rodata-file overlay-file)))) ))
+                                (when sym-list
+                                  (format t "~&| ~a~{~T|~:D~}|~%" short-name
+                                          (mapcar #'sum-syms (list  f  data-file rodata-file overlay-file))))
+                                (when dump-symbol
+                                  (dump-symbol-list sym-list)))))))
                    (format t "~&|~18a~{~T|~:D~}|~%"  module
                            (mapcar #'(lambda (files)
                                        (loop for f in files sum (sum-syms f)))
