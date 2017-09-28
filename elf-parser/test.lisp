@@ -110,10 +110,8 @@
 (defparameter *overlay-pred* #'overlay-sym?)
 (defparameter *rodata-pred* #'rodata-sym?)
 
-
-
 (defun show-debug-module-symbols (modules &optional &key
-                                                      (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil) (get-text-func *get-all-text-symbols*) (get-data-func *get-all-data-symbols* ) (rodata-pred #'rodata-sym?) (overlay-pred *overlay-pred*))
+                                                      (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil) (get-text-func *get-all-text-symbols*) (sym-type nil) (no-rodata nil) (get-data-func *get-all-data-symbols* ) (rodata-pred #'rodata-sym?) (overlay-pred *overlay-pred*))
   "show  debug symbols info in dwarf .debug_info section
 threshod: optional, the threshold size to dump info
 dump-file: should also dump file info
@@ -125,11 +123,21 @@ path: path filter"
     (flet ((dump-code-data (module codes datas)
              (flet ((sum-syms (f) (loop for s in (cadr f)  sum (elf:size s)))
                     (dump-symbol-list (f)
-                      (loop for sym in (cadr f)
-                         do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
-                                    (elf:value sym) (elf:size sym) (elf:type sym)
-                                    (elf:binding sym)
-                                    (elf:sym-name sym)))))
+                      (let* ((syms (remove-if-not #'(lambda (sym)
+                                                      (and
+                                                       (if sym-type
+                                                           (eql sym-type (elf:type sym)) t)
+                                                       (if (and no-rodata
+                                                                (eql :object (elf:type sym)))
+                                                           (not (funcall rodata-pred sym))
+                                                           t)
+                                                       (> (elf:size sym) threshold)))
+                                                  (cadr f))))
+                        (loop for sym in syms
+                           do (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
+                                      (elf:value sym) (elf:size sym) (elf:type sym)
+                                      (elf:binding sym)
+                                      (elf:sym-name sym))))))
                (let* ((module-rodatas (mapcar  (alexandria:curry #'sym-filter rodata-pred) datas))
                       (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter overlay-pred) datas))
                       (module-datas (mapcar (alexandria:curry #'sym-filter
