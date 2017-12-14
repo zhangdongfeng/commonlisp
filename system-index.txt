@@ -1,3 +1,11 @@
+git/git.asd
+git/git-test.asd
+cl-demo/cl-demo.asd
+cl-mqtt/cl-mqtt.asd
+cl-demo/cl-demo-test.asd
+cl-mqtt/cl-mqtt.tests.asd
 elf-parser/elf-parser.asd
+sb-texinfo/sb-texinfo.asd
 http-client/http-client.asd
 flexi-streams/flexi-streams.asd
+i4-diet-utils/i4-diet-utils.asd

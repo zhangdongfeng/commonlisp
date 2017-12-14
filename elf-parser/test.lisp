@@ -111,7 +111,7 @@
 (defparameter *rodata-pred* #'rodata-sym?)
 
 (defun show-debug-module-symbols (modules &optional &key
-                                                      (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil) (get-text-func *get-all-text-symbols*) (sym-type nil) (no-rodata nil) (get-data-func *get-all-data-symbols* ) (rodata-pred #'rodata-sym?) (overlay-pred *overlay-pred*))
+                                                      (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil) (get-text-func *get-all-text-symbols*) (no-overlay nil) (sym-type nil) (no-rodata nil) (get-data-func *get-all-data-symbols* ) (rodata-pred #'rodata-sym?) (overlay-pred *overlay-pred*))
   "show  debug symbols info in dwarf .debug_info section
 threshod: optional, the threshold size to dump info
 dump-file: should also dump file info
@@ -151,6 +151,10 @@ path: path filter"
                                       (if (and no-rodata
                                                (eql :object (elf:type sym)))
                                           (not (funcall rodata-pred sym))
+                                          t)
+                                      (if (and no-overlay
+                                               (eql :object (elf:type sym)))
+                                          (not (funcall overlay-pred sym))
                                           t)
                                       (> (elf:size sym) threshold))))
                               (let ((sym-list (remove-if-not #'should-dump?
