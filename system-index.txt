@@ -1,7 +1,7 @@
-git/git.asd
-git/git-test.asd
+mygit/mygit.asd
 cl-demo/cl-demo.asd
 cl-mqtt/cl-mqtt.asd
+mygit/mygit-test.asd
 cl-demo/cl-demo-test.asd
 cl-mqtt/cl-mqtt.tests.asd
 elf-parser/elf-parser.asd

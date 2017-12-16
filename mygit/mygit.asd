@@ -1,20 +1,24 @@
 #|
-  This file is a part of git project.
+  This file is a part of mygit project.
 |#
 
 (in-package :cl-user)
-(defpackage git-asd
+(defpackage mygit-asd
   (:use :cl :asdf))
-(in-package :git-asd)
+(in-package :mygit-asd)
 
-(defsystem git
+(defsystem mygit
   :version "0.1"
   :author ""
   :license ""
-  :depends-on ( :alexandria :babel :babel-streams :cl-ppcre :trivial-shell )
+  :depends-on (:alexandria
+               :babel
+               :babel-streams
+               :cl-ppcre
+               :trivial-shell)
   :components ((:module "src"
-                        :components
-                        ((:file "git"))))
+                :components
+                ((:file "mygit"))))
   :description ""
   :long-description
   #.(with-open-file (stream (merge-pathnames
@@ -28,4 +32,4 @@
                                :fill-pointer t)))
           (setf (fill-pointer seq) (read-sequence seq stream))
           seq)))
-  :in-order-to ((test-op (test-op git-test))))
+  :in-order-to ((test-op (test-op mygit-test))))

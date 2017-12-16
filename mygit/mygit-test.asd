@@ -1,21 +1,21 @@
 #|
-  This file is a part of git project.
+  This file is a part of mygit project.
 |#
 
 (in-package :cl-user)
-(defpackage git-test-asd
+(defpackage mygit-test-asd
   (:use :cl :asdf))
-(in-package :git-test-asd)
+(in-package :mygit-test-asd)
 
-(defsystem git-test
+(defsystem mygit-test
   :author ""
   :license ""
-  :depends-on (:git
+  :depends-on (:mygit
                :prove)
   :components ((:module "t"
                 :components
-                ((:test-file "git"))))
-  :description "Test system for git"
+                ((:test-file "mygit"))))
+  :description "Test system for mygit"
 
   :defsystem-depends-on (:prove-asdf)
   :perform (test-op :after (op c)
