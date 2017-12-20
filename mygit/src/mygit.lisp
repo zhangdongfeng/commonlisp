@@ -1,107 +1,130 @@
 (in-package :cl-user)
 (defpackage mygit
-  (:use :cl :alexandria :babel :babel-streams :cl-ppcre))
+  (:use :cl :alexandria :flexi-streams  :cl-ppcre))
 (in-package :mygit)
 
 ;; blah blah blah.
 
-(defgeneric file-to-string-as-lines (pathname)
-  (:documentation ""))
+;;(cl-fad:list-directory #p "/Volumes/tmp/tmp/AOSP")
 
-(defmethod file-to-string-as-lines ((pathname pathname))
-  (with-open-file (stream pathname :direction :input)
-    (file-to-string-as-lines stream)))
+(make-pathname :directory '(:absolute "public" "games")
+               :name "chess" :type "db")
 
-(defmethod file-to-string-as-lines ((stream stream))
-  (with-output-to-string (s)
-    (loop for line = (read-line stream nil :eof nil)
-       until (eq line :eof)
-       do
-         (princ line s)
-         (terpri s))))
+(defun lines-to-string (lines)
+  (let ((str (make-array '(0) :element-type 'base-char
+                         :fill-pointer 0 :adjustable t)))
+    (with-output-to-string  (s str)
+      (loop for line in lines
+         do (write-line line  s)))
+    str))
 
-(defparameter *bourne-compatible-shell* "/bin/sh"
-  "The path to a Bourne compatible command shell in
-physical pathname notation.")
+(defun string-to-lines  (str)
+  (with-input-from-string (s str)
+    (loop for line = (read-line s  nil nil)
+       while  line  collect line)))
 
-(defvar *shell-search-paths* '("/usr/bin/" "/usr/local/bin/"))
+(defun remove-regex (str regex)
+  (multiple-value-bind (s  e  r1 r2)
+      (scan regex  str)
+    (if e
+        (values (subseq str e) t)
+        (values  str nil))))
 
-(defun find-command-ending-in-string (command)
-  (let ((checking? t))
-    (loop for ch across command
-       for i from 0 do
-         (cond ((and checking? (char= ch #\Space))
-                (return i))
-               ((char= ch #\\)
-                (setf checking? nil))
-               (t
-                (setf checking? t))))))
+(defun mk-list (ele)
+  (if (listp ele)  ele (cons ele nil)))
 
-(defmethod shell ((command t) &key input)
-  "Synchronously execute `command` using a Bourne-compatible shell,
-returns (values output error-output exit-status).
+(defun flatten-list (lst)
+  (if (listp lst)  (car lst) lst))
 
-The `command` can be a full path to a shell executable binary
-or just its name. In the later case, the variable `*shell-search-paths*`
-will be used to find the executable.
+(defparameter *debug* nil)
+(defun parse-regex-spec (spec  str)
+  "parse string defined by spec, regex will be matched one by one
+ non group regex will be omit,  and  grouped keyrex will be collect into result list
+spec:
+`(regex  (keyrex) ...)
+result:
+'(result-list, str-left)"
+  (flet ((read-remove-regex-from-string (regex string)
+           (when *debug*
+             (pprint regex)
+             (pprint (subseq string 0 (min 20 (length string)))))
+           (let ((s1 (remove-regex string "^\\s*" )))
+             (multiple-value-bind (m r)
+                 (scan-to-strings (concatenate 'string "^"  regex)   s1)
+               (when *debug*
+                 (format t "~% result")
+                 (pprint m )
+                 (pprint r ))
+               (if r
+                   (values (aref r 0)
+                           (remove-regex s1 regex))
+                   (values nil (remove-regex s1 regex)))))))
+    (cond
+      ((null spec) (values nil str))
+      (t  (multiple-value-bind (r s2)
+              (read-remove-regex-from-string  (car spec) str)
+            (multiple-value-bind (r1 s3)
+                (parse-regex-spec (cdr spec) s2)
+              (values (cons r r1) s3)))))))
 
-Depending on the implementation, the variable `*bourne-compatible-shell*`
-may be used to find a shell to use in executing `command`."
-  (let* ((pos-/ (position #\/ command))
-         (pos-space (find-command-ending-in-string command))
-         (binary (subseq command 0 (or pos-space)))
-         (args (and pos-space (subseq command pos-space))))
-    (when (or (not pos-/)
-              (and pos-/ pos-space)
-              (and pos-space
-                   (< pos-/ pos-space)))
-      ;; no slash in the command portion, try to find the command with
-      ;; our path
-      (setf binary
-            (or (loop for path in *shell-search-paths* do
-                     (let ((full-binary (make-pathname :name binary
-                                                       :defaults path)))
-                       (when (and (probe-file full-binary)
-                                  (directory-pathname-p full-binary))
-                         (return full-binary))))
-                binary)))
-    (multiple-value-bind (output error status)
-        (%shell-command (format nil "~a~@[ ~a~]" binary args) input)
-      (values output error status))))
+(defun list-have-elements (seq)
+  (reduce  #'(lambda(x y)  (or x y))   seq ))
 
-(defun directory-pathname-p (pathname)
-  "Does `pathname` syntactically  represent a directory?
+(defun have-null-elements (seq)
+  (not (reduce
+        #'(lambda(x y)  (and x y))   seq )))
 
-A directory-pathname is a pathname _without_ a filename. The three
-ways that the filename components can be missing are for it to be `nil`,
-`:unspecific` or the empty string.
-"
-  (flet ((check-one (x)
-           (not (null (member x '(nil :unspecific "")
-                              :test 'equal)))))
-    (and (check-one (pathname-name pathname))
-         (check-one (pathname-type pathname)))))
+(defun extract-by-marker (start-regex end-regex string)
+  (let ((start (scan start-regex string)))
+    (if start
+        (let* ((ofs (length (scan-to-strings start-regex string)))
+               (end (scan end-regex (subseq string (+ start ofs)))))
+          (if end
+              (let ((real-end (+ start  end ofs)))
+                (values (subseq string start real-end )
+                        (subseq string real-end)))
+              (values (subseq string start)  nil))))))
 
-(defun %shell-command (command input #+(or) output)
-  (let* ((process (sb-ext:run-program
-                   *bourne-compatible-shell*
-                   (list "-c" command)
-                   :wait nil :input input
-                   :external-format :utf8
-                   :output :stream
-                   :error :stream ))
-         (output-thread (sb-thread:make-thread
-                         #'(lambda ()
-                             (file-to-string-as-lines
-                              (sb-impl::process-output process)))))
-         (error-thread (sb-thread:make-thread
-                        #'(lambda ()
-                            (file-to-string-as-lines
-                             (sb-impl::process-error process))))))
-    (let ((error-code
-           (sb-impl::process-exit-code (sb-impl::process-wait process)))
-          (output-string (sb-thread:join-thread output-thread))
-          (error-string (sb-thread:join-thread error-thread)))
-      (close (sb-impl::process-output process))
-      (close (sb-impl::process-error process))
-      (values output-string error-string error-code))))
+(defun read-file-into-lines (path)
+  (with-open-file (f path )
+    (loop for line = (read-line f  nil nil)
+       while  line  collect line)))
+
+(defparameter %name% "([0-9a-zA-Z/-_.]+)")
+
+(defun parse-manifest (path spec func)
+  (let (prjs)
+    (setq prjs (mapcar (curry #'parse-regex-spec spec)
+                       (read-file-into-lines path)))
+    (setq prjs (mapcar func prjs))
+    (setq prjs (remove-if-not #'list-have-elements prjs))
+    (stable-sort prjs #'string< :key #'car)))
+
+(defun get-mainfest-diff (aosp-xml owl-xml)
+  (set-difference (parse-manifest aosp-xml
+                                  `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
+                                      ,(concatenate 'string "name=\"" %name%  "\""))
+                                  #'(lambda (prj) (list (cadr prj) (car prj))))
+                  (parse-manifest owl-xml
+                                  `( ,(concatenate 'string  "<project name=\"" %name%  "\"" )
+                                      ,(concatenate 'string "path=\"" %name%  "\""))
+                                  #'(lambda (prj)  prj))
+
+                  :key #'(lambda (x)
+                           (file-namestring (car x))) :test #'string= ))
+
+(get-mainfest-diff #p "/Users/zhangdongfeng/Downloads/manifest.xml"
+                   #p "/Users/zhangdongfeng/Downloads/manifest(1).xml")
+
+#+ (or)
+(set-difference (parse-manifest aosp-xml
+                                `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
+                                    ,(concatenate 'string "name=\"" %name%  "\""))
+                                #'(lambda (prj) (list (cadr prj) (car prj))))
+                (parse-manifest owl-xml
+                                `( ,(concatenate 'string  "<project name=\"" %name%  "\"" )
+                                    ,(concatenate 'string "path=\"" %name%  "\""))
+                                #'(lambda (prj)  prj))
+
+                :key #'(lambda (x)
+                         (file-namestring (car x))) :test #'string= )

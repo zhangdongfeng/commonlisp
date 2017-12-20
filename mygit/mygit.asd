@@ -12,13 +12,14 @@
   :author ""
   :license ""
   :depends-on (:alexandria
-               :babel
-               :babel-streams
+               :flexi-streams
+               :cl-fad
                :cl-ppcre
                :trivial-shell)
   :components ((:module "src"
-                :components
-                ((:file "mygit"))))
+                        :components
+                        ((:file "mygit")
+                         (:file "shell"))))
   :description ""
   :long-description
   #.(with-open-file (stream (merge-pathnames
