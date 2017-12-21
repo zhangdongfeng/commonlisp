@@ -113,8 +113,55 @@ result:
                   :key #'(lambda (x)
                            (file-namestring (car x))) :test #'string= ))
 
+(defparameter *dir-prefix* "/home/local/ACTIONS/zhangdf/aosp/" )
+
+(defun rename-git-config (prj)
+  (let ((file (cl-fad:merge-pathnames-as-file
+               (make-repo-path *dir-prefix* prj) ".git/config")))
+    (if (cl-fad:file-exists-p  file)
+        (rename-file file "config_bak")
+        (format t "~a does not exist ~%" file))))
+
+(defun make-repo-path (prefix prj)
+  (let* ((dir (cl-fad:pathname-as-directory (cadr prj))))
+    (cl-fad:merge-pathnames-as-file prefix  dir)))
+
+(defun rewrite-git-config (prj)
+  (let ((file (cl-fad:merge-pathnames-as-file
+               (make-repo-path *dir-prefix* prj) ".git/config")))
+    (with-output-to-file (s file :if-exists :overwrite)
+      (format s "[core]~%")
+      (format s "~trepositoryformatversion = 0~%")
+      (format s "~tfilemode = true~%")
+      (format s "[remote \"gl5206\"~%")
+      (format s "~turl = ssh://192.168.4.4:29418/ZH/actions/GL5206/~a~%" (cadr prj) )
+      (format s "~treview = notused.actions-semi.com~%")
+      (format s "~tprojectname = ~a~%" (cadr prj))
+      (format s "fetch = +refs/heads/*:refs/remotes/gl5206/*~%"))))
+
+(defun gen-git-scripts (prj)
+  (let ((file (make-repo-path *dir-prefix* prj)))
+    (let ((dir (directory-namestring file)))
+      (format t "cd ~a~%" dir)
+      (format t "git push gl5206 HEAD:refs/heads/android_oreo~%"))))
+
+#+(or)
 (get-mainfest-diff #p "/Users/zhangdongfeng/Downloads/manifest.xml"
-                   #p "/Users/zhangdongfeng/Downloads/manifest(1).xml")
+                   #p "/Users/zhangdongfeng/Downloads/GS700E_android_7000.xml")
+
+#+ (or)
+(progn
+  (let ((manifest (parse-manifest aosp-xml
+                                  `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
+                                      ,(concatenate 'string "name=\"" %name%  "\""))
+                                  #'(lambda (prj) (list (cadr prj) (car prj)))) ))
+    (mapcan #'rename-git-config manifest))
+  (mapcan #'rename-git-config manifest)
+  (mapcan #'gen-git-scripts manifest))
+
+#+ (or)
+(loop for prj in *
+   do (format t "ZH/actions/GL5206/android/~a ~%" (car prj)))
 
 #+ (or)
 (set-difference (parse-manifest aosp-xml
