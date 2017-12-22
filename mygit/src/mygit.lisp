@@ -129,15 +129,17 @@ result:
 (defun rewrite-git-config (prj)
   (let ((file (cl-fad:merge-pathnames-as-file
                (make-repo-path *dir-prefix* prj) ".git/config")))
-    (with-output-to-file (s file :if-exists :overwrite)
-      (format s "[core]~%")
-      (format s "~trepositoryformatversion = 0~%")
-      (format s "~tfilemode = true~%")
-      (format s "[remote \"gl5206\"~%")
-      (format s "~turl = ssh://192.168.4.4:29418/ZH/actions/GL5206/~a~%" (cadr prj) )
-      (format s "~treview = notused.actions-semi.com~%")
-      (format s "~tprojectname = ~a~%" (cadr prj))
-      (format s "fetch = +refs/heads/*:refs/remotes/gl5206/*~%"))))
+    (handler-case
+        (with-output-to-file (s file :if-exists :overwrite :if-does-not-exist :create)
+          (format s "[core]~%")
+          (format s "~trepositoryformatversion = 0~%")
+          (format s "~tfilemode = true~%")
+          (format s "[remote \"gl5206\"]~%")
+          (format s "~turl = ssh://192.168.4.4:29418/ZH/actions/GL5206/android/~a~%" (car prj) )
+          (format s "~treview = notused.actions-semi.com~%")
+          (format s "~tprojectname = ~a~%" (car prj))
+          (format s "fetch = +refs/heads/*:refs/remotes/gl5206/*~%"))
+      (error (e) (pprint e)))))
 
 (defun gen-git-scripts (prj)
   (let ((file (make-repo-path *dir-prefix* prj)))
@@ -151,12 +153,12 @@ result:
 
 #+ (or)
 (progn
-  (let ((manifest (parse-manifest aosp-xml
+  (let ((manifest (parse-manifest "/home/local/ACTIONS/zhangdf/aosp/.repo/manifest.xml"
                                   `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
                                       ,(concatenate 'string "name=\"" %name%  "\""))
                                   #'(lambda (prj) (list (cadr prj) (car prj)))) ))
     (mapcan #'rename-git-config manifest))
-  (mapcan #'rename-git-config manifest)
+  (mapcan #'rewrite-git-config manifest)
   (mapcan #'gen-git-scripts manifest))
 
 #+ (or)
@@ -164,7 +166,7 @@ result:
    do (format t "ZH/actions/GL5206/android/~a ~%" (car prj)))
 
 #+ (or)
-(set-difference (parse-manifest aosp-xml
+(set-difference (parse-manifest "/home/local/ACTIONS/zhangdf/aosp/.repo/manifest.xml"
                                 `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
                                     ,(concatenate 'string "name=\"" %name%  "\""))
                                 #'(lambda (prj) (list (cadr prj) (car prj))))
