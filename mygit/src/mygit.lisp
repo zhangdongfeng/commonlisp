@@ -90,7 +90,7 @@ result:
     (loop for line = (read-line f  nil nil)
        while  line  collect line)))
 
-(defparameter %name% "([0-9a-zA-Z/-_.]+)")
+(defparameter %name% "([0-9a-zA-Z/\\-_.]+)")
 
 (defun parse-manifest (path spec func)
   (let (prjs)
@@ -112,6 +112,22 @@ result:
 
                   :key #'(lambda (x)
                            (file-namestring (car x))) :test #'string= ))
+
+(defun get-mainfest-diff-wholepath (aosp-xml owl-xml)
+  (set-difference (parse-manifest aosp-xml
+                                  `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
+                                      ,(concatenate 'string "name=\"" %name%  "\""))
+                                  #'(lambda (prj) (list (cadr prj) (car prj))))
+                  (parse-manifest owl-xml
+                                  `( ,(concatenate 'string  "<project name=\"" %name%  "\"" )
+                                      ,(concatenate 'string "path=\"" %name%  "\""))
+                                  #'(lambda (prj)  prj))
+
+                  :key #'(lambda (x)
+                           (let ((prj (car x)))
+                             (cond
+                               ((scan "^android/" prj ) (subseq  prj (length "android/")))
+                               (t prj)))) :test #'string= ))
 
 (defparameter *dir-prefix* "/home/local/ACTIONS/zhangdf/aosp/" )
 
@@ -139,7 +155,7 @@ result:
           (format s "~treview = notused.actions-semi.com~%")
           (format s "~tprojectname = ~a~%" (car prj))
           (format s "fetch = +refs/heads/*:refs/remotes/gl5206/*~%"))
-      (error (e) (pprint e)))))
+      (error (e) (format t "~a~%"  e)))))
 
 (defun gen-git-scripts (prj)
   (let ((file (make-repo-path *dir-prefix* prj)))
@@ -147,33 +163,21 @@ result:
       (format t "cd ~a~%" dir)
       (format t "git push gl5206 HEAD:refs/heads/android_oreo~%"))))
 
-#+(or)
-(get-mainfest-diff #p "/Users/zhangdongfeng/Downloads/manifest.xml"
-                   #p "/Users/zhangdongfeng/Downloads/GS700E_android_7000.xml")
-
 #+ (or)
 (progn
-  (let ((manifest (parse-manifest "/home/local/ACTIONS/zhangdf/aosp/.repo/manifest.xml"
-                                  `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
-                                      ,(concatenate 'string "name=\"" %name%  "\""))
-                                  #'(lambda (prj) (list (cadr prj) (car prj)))) ))
-    (mapcan #'rename-git-config manifest))
-  (mapcan #'rewrite-git-config manifest)
-  (mapcan #'gen-git-scripts manifest))
+  (let (manifest)
+    (setq manifest
+          (parse-manifest "/home/local/ACTIONS/zhangdf/aosp/.repo/manifest.xml"
+                          `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
+                              ,(concatenate 'string "name=\"" %name%  "\""))
+                          #'(lambda (prj) (list (cadr prj) (car prj)))))
+    (mapcan #'rename-git-config manifest)
+    (mapcan #'rewrite-git-config manifest)
+    (mapcan #'gen-git-scripts manifest)) )
 
 #+ (or)
-(loop for prj in *
+(loop for prj in
+     (get-mainfest-diff-wholepath
+      "/home/local/ACTIONS/zhangdf/aosp/.repo/manifest.xml"
+      "/home/local/ACTIONS/zhangdf/gs700e/android/.repo/manifests/GS700E_android_7000.xml")
    do (format t "ZH/actions/GL5206/android/~a ~%" (car prj)))
-
-#+ (or)
-(set-difference (parse-manifest "/home/local/ACTIONS/zhangdf/aosp/.repo/manifest.xml"
-                                `( ,(concatenate 'string  "<project path=\"" %name%  "\"" )
-                                    ,(concatenate 'string "name=\"" %name%  "\""))
-                                #'(lambda (prj) (list (cadr prj) (car prj))))
-                (parse-manifest owl-xml
-                                `( ,(concatenate 'string  "<project name=\"" %name%  "\"" )
-                                    ,(concatenate 'string "path=\"" %name%  "\""))
-                                #'(lambda (prj)  prj))
-
-                :key #'(lambda (x)
-                         (file-namestring (car x))) :test #'string= )
