@@ -15,11 +15,14 @@
                :flexi-streams
                :cl-fad
                :cl-ppcre
-               :trivial-shell)
+               :trivial-shell
+               :drakma
+               :yason)
   :components ((:module "src"
                         :components
                         ((:file "mygit")
-                         (:file "shell"))))
+                         (:file "shell")
+                         (:file "gerrit"))))
   :description ""
   :long-description
   #.(with-open-file (stream (merge-pathnames
