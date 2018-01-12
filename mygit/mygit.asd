@@ -22,7 +22,10 @@
                         :components
                         ((:file "mygit")
                          (:file "shell")
-                         (:file "gerrit"))))
+                         (:file "regex")
+                         (:file "manifest")
+                         (:file "gerrit")
+                         )))
   :description ""
   :long-description
   #.(with-open-file (stream (merge-pathnames
