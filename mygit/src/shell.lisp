@@ -47,7 +47,7 @@ physical pathname notation.")
                (t
                 (setf checking? t))))))
 
-(defmethod shell ((command t) &key input)
+(defmethod shell-command ((command t) &key input)
   "Synchronously execute `command` using a Bourne-compatible shell,
 returns (values output error-output exit-status).
 
