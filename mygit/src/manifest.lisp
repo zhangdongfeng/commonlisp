@@ -249,7 +249,7 @@ delete-branch branch: generate shell scripts to delete repo branch")
   (ecase cmd
     (help  (format t "~a" +help-msg+))
     (list-all-branches
-     (get-manifest-all-branches (project-branches repo)))
+     (get-manifest-all-branches (projects repo)))
     (list-projects (projects repo) )
     (list-branch-projects  (apply  #'find-projects-by-branch
                                    (append args (list (project-branches repo)))))
