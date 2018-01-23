@@ -41,9 +41,6 @@
                                ((scan "^android/" prj ) (subseq  prj (length "android/")))
                                (t prj)))) :test #'string= ))
 
-
-(defparameter *android-root* nil )
-
 (defun rename-git-config (prj)
   "rename .git/config file to bak"
   (let ((file (cl-fad:merge-pathnames-as-file
@@ -51,6 +48,8 @@
     (if (cl-fad:file-exists-p  file)
         (rename-file file "config_bak")
         (format t "~a does not exist ~%" file))))
+
+(defparameter *android-root* nil )
 
 (defun make-repo-path (prj)
   "make new file system path from prj path and project file system root
@@ -102,15 +101,6 @@
     (cond ((= 2 (length r)) (values (elt r 0) (elt r 1)))
           (t nil))))
 
-(defun gen-delete-branch-scripts (remote-branch pb)
-  " generate shell command to delete remote's branch "
-  (multiple-value-bind (remote branch)
-      (parse-remote-branch remote-branch)
-    (with-project-path (path (project pb)) 
-      (format t "cd ~a~%" path)
-      (format t "git push ~a :refs/heads/~a~%" remote branch))))
-
-
 (defclass project-branches ()
   ((project :initarg :project
             :reader project)
@@ -122,10 +112,12 @@
     (pprint-logical-block (*standard-output* (project prj))
       (pprint-exit-if-list-exhausted)
       (loop
-         (write-string (pprint-pop))
-         (write-char #\space)
-         (pprint-exit-if-list-exhausted)
-         (pprint-newline :fill)))
+         (let ((obj (pprint-pop)))
+           (pprint-exit-if-list-exhausted)
+           (when  obj
+             (write-string obj)
+             (write-char #\space)
+             (pprint-newline :fill)))))
     (pprint-newline :linear)
     (pprint-logical-block (*standard-output* (branches prj))
       (pprint-exit-if-list-exhausted)
@@ -133,14 +125,6 @@
       (pprint-newline :fill))))
 
 (set-pprint-dispatch  'project-branches 'pprint-project-branches)
-
-
-(defun find-projects-by-branch (branch prj-branches)
-  "branche: branch name to fine
-prj-branches: list of project-branches instance"
-  (remove-if-not  #'(lambda (b)
-                      (search branch (branches b) :test #'string=))
-                  prj-branches))
 
 (defun restore-git-bak-config  (prj)
   (let ((file (make-repo-path  prj)))
@@ -157,7 +141,6 @@ prj-branches: list of project-branches instance"
       (format t "cd ~a~%" dir)
       (format t "git checkout ~a~%" branch))))
 
-
 (defun get-project-branches (prj)
   (let* ((file (make-repo-path  prj))
          (dir (directory-namestring file))
@@ -169,7 +152,6 @@ prj-branches: list of project-branches instance"
       (cond ((and status  (= 0 status)) (make-instance  'project-branches
                                                         :project prj :branches  (car shell-res)))
             (t nil)))))
-
 
 (defun shell-command-ok (res)
   (let ((status (nth 2 res) ))
@@ -193,15 +175,27 @@ prj-branches: list of project-branches instance"
       :test #'string=)
      #'string<)))
 
+(defclass repo-project ()
+  ((projects  :initarg :projects
+              :accessor projects)
+   (project-branches :initarg :project-branches
+                     :accessor project-branches)))
 
+(defun find-projects-by-branch (branch prj-branches)
+  "branche: branch name to fine
+prj-branches: list of project-branches instance"
+  (remove-if-not  #'(lambda (b)
+                      ;;(format t "~a ~a~%" (project b) (branches b))
+                      (search branch (branches b) :test #'string=))
+                  prj-branches))
 
-
-#+ (or)
-(loop for prj in
-     (get-mainfest-diff-wholepath
-      "/home/local/ACTIONS/zhangdf/aosp/.repo/manifest.xml"
-      "/home/local/ACTIONS/zhangdf/gs700e/android/.repo/manifests/GS700E_android_7000.xml")
-   do (format t "ZH/actions/GL5206/android/~a ~%" (car prj)))
+(defun gen-delete-branch-scripts (remote-branch pb)
+  " generate shell command to delete remote's branch "
+  (multiple-value-bind (remote branch)
+      (parse-remote-branch remote-branch)
+    (with-project-path (path (project pb)) 
+      (format t "cd ~a~%" path)
+      (format t "git push ~a :refs/heads/~a~%" remote branch))))
 
 #+(or)
 (defun gen-git-scripts-aosp (remote branch)
@@ -215,8 +209,6 @@ prj-branches: list of project-branches instance"
     (mapcan (curry #'rewrite-git-config  remote "android/")  manifest)
     (mapcan (curry #'gen-git-push-scripts  remote branch)  manifest)))
 
-"/home/local/ACTIONS/zhangdf/TB_170711_LS370A__TAG_GS705B_4420_160408.xml"
-
 #+(or)
 (defun gen-git-scripts-ls370a (path remote branch)
   (let (( *repo-root* "/home/local/ACTIONS/zhangdf/LS370A/" )
@@ -227,17 +219,8 @@ prj-branches: list of project-branches instance"
     (mapcan (curry #'rewrite-git-config  remote "")  manifest)
     (mapcan (curry #'gen-git-scripts  remote branch)  manifest)))
 
-
-"/home/local/ACTIONS/zhangdf/gs700e/android/.repo/manifests/GS700E_android_5110.xml
-"
-
-
-
-#+ (or)
-(find-projects-by-branch "remotes/gl5209/remotes/gl5209/zh/OWL_Integratio" branch)
-
-#+(or)
 (defun parse-manifest-gs700e (xml-path)
+  (setq *android-root* (subseq xml-path 0 (search ".repo/" xml-path )))
   (parse-manifest xml-path
                   `( ,(concatenate 'string  "<project name=\"" %name%  "\"" )
                       ,(concatenate 'string "path=\"" %name%  "\""))
@@ -255,3 +238,32 @@ prj-branches: list of project-branches instance"
     (setq prjs (mapcar #'(lambda (prj) (if (not (nth 2 prj))
                                        (list (car prj) (cadr prj))))  prjs))
     (setq prjs (remove-if #'null  prjs))))
+
+(defparameter +help-msg+ "
+list-all-branches: list all branches of repo project
+list-projects: list all project
+list-branch-projects  branch: list all projects by branch
+delete-branch branch: generate shell scripts to delete repo branch")
+
+(defun command-interface (repo cmd &rest args)
+  (ecase cmd
+    (help  (format t "~a" +help-msg+))
+    (list-all-branches
+     (get-manifest-all-branches (project-branches repo)))
+    (list-projects (projects repo) )
+    (list-branch-projects  (apply  #'find-projects-by-branch
+                                   (append args (list (project-branches repo)))))
+    (delete-branch (mapcar #'(lambda (prj) (apply  #'gen-delete-branch-scripts (append args (list prj))))
+                           (apply  #'find-projects-by-branch (append args (list (project-branches repo))))))
+    (t  nil)))
+
+(defparameter command  nil)
+(defun make-command-interface (xml)
+  "parse manifest xml"
+  (let* ((prjs (parse-manifest-gs700e  xml))
+         (prj-branches (get-all-project-branches prjs))
+         (repo (make-instance 'repo-project :projects prjs :project-branches prj-branches)))
+    (setq command (curry #'command-interface repo))))
+
+#+(or)
+(make-command-interface  "/home/local/ACTIONS/zhangdf/gs700e/android/.repo/manifests/GS700E_android_5110.xml")
