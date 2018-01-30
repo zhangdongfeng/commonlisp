@@ -189,11 +189,27 @@ prj-branches: list of project-branches instance"
                       (search branch (branches b) :test #'string=))
                   prj-branches))
 
-(defun gen-delete-branch-scripts (remote-branch pb)
+(defun get-project-remote (prj)
+  (let* ((file (make-repo-path prj))
+         (dir (directory-namestring file))
+         shell-res)
+    (setq shell-res
+          (multiple-value-list (shell-command
+                                (format nil "cd ~a &&  git remote" dir))))
+    (let ((status (nth 2 shell-res) ))
+      (cond ((and status  (= 0 status)) (scan-to-strings "\\S+" (car shell-res)))
+            (t nil)))))
+
+(defun gen-delete-branch-scripts (remote-branch project-branches)
   " generate shell command to delete remote's branch "
-  (multiple-value-bind (remote branch)
-      (parse-remote-branch remote-branch)
-    (with-project-path (path (project pb)) 
+  (let (remote branch)
+    (cond ((starts-with-subseq "  remotes/" remote-branch)
+           (multiple-value-bind (r b)
+               (parse-remote-branch remote-branch)
+             (setq remote r  branch b )))
+          (t (setq remote (get-project-remote (project project-branches))
+                   branch remote-branch)))
+    (with-project-path (path  (project project-branches))
       (format t "cd ~a~%" path)
       (format t "git push ~a :refs/heads/~a~%" remote branch))))
 
@@ -242,20 +258,38 @@ prj-branches: list of project-branches instance"
 (defparameter +help-msg+ "
 list-all-branches: list all branches of repo project
 list-projects: list all project
-list-branch-projects  branch: list all projects by branch
-delete-branch branch: generate shell scripts to delete repo branch")
+rename-config: backup git's config file to config_bak
+restore-config: restor git's config_bak to config file
+rewrite-git-config remote repo-prefix: , and rewrite .config to new gerrit remote
+gen-git-push remote branch: generate git push scripts for projects
+list-branch  branch: list all projects by branch
+del-branch branch: generate shell scripts to delete repo branch")
 
 (defun command-interface (repo cmd &rest args)
-  (ecase cmd
-    (help  (format t "~a" +help-msg+))
-    (list-all-branches
-     (get-manifest-all-branches (projects repo)))
-    (list-projects (projects repo) )
-    (list-branch-projects  (apply  #'find-projects-by-branch
-                                   (append args (list (project-branches repo)))))
-    (delete-branch (mapcar #'(lambda (prj) (apply  #'gen-delete-branch-scripts (append args (list prj))))
-                           (apply  #'find-projects-by-branch (append args (list (project-branches repo))))))
-    (t  nil)))
+  (let ((prjs (projects repo))
+        (branches (project-branches repo)))
+    (ecase cmd
+      (help
+       (format t "~a" +help-msg+))
+      (list-all-branches
+       (let ((all (get-manifest-all-branches prjs)))
+         (loop for b in all
+            do (format t "~a~%" b))))
+      (list-projects prjs)
+      (rename-config
+       (mapcan #'rename-git-config prjs))
+      (restore-config
+       (mapcan #'restore-git-bak-config  prjs))
+      (rewrite-git-config
+       (mapcan (apply #'curry #'rewrite-git-config  args)  prjs))
+      (gen-git-push
+       (mapcan (apply #'curry #'gen-git-push-scripts  args) prjs))
+      (list-branch
+       (apply  #'find-projects-by-branch (append args (list branches))))
+      (del-branch
+       (mapcar #'(lambda (prj) (apply  #'gen-delete-branch-scripts (append args (list prj))))
+               (apply  #'find-projects-by-branch (append args (list branches)))))
+      (t  nil))))
 
 (defparameter command  nil)
 (defun make-command-interface (xml)
@@ -266,4 +300,5 @@ delete-branch branch: generate shell scripts to delete repo branch")
     (setq command (curry #'command-interface repo))))
 
 #+(or)
-(make-command-interface  "/home/local/ACTIONS/zhangdf/gs700e/android/.repo/manifests/GS700E_android_5110.xml")
+(make-command-interface  "
+/home/local/ACTIONS/zhangdf/gs700e/android/.repo/manifests/GS700E_android_5110.xml")
