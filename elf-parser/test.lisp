@@ -168,6 +168,8 @@ path: path filter"
                            (mapcar #'(lambda (files)
                                        (loop for f in files sum (sum-syms f)))
                                    (list codes module-datas module-rodatas module-overlay-datas)))
+                   (mapc #'(lambda (f)
+                             (format t "~&~a ~d~%" (car f) (sum-syms f))) codes)
                    (when dump-file (format t "~&**** module details:~%")
                          (format t "~&| file name |code size|data size|rodata size| overlay-data-size|~%")
                          (mapc #'dump-file-info   codes)))))))
