@@ -1,14 +1,13 @@
 (in-package :elf-parser)
 
-
 (defun overlay-sym? (sym)
   (let* ((overlay-secs (remove-if-not
                         #'(lambda (sec) (search ".overlay." (elf:name sec))) (elf:sections *elf*)))
          (addr-pairs  (mapcar
                        #'(lambda (sec) (list (elf:address (elf:sh sec))
-                                        (+ (elf:address (elf:sh sec)) (elf:size (elf:sh sec)))))    overlay-secs)))
+                                         (+ (elf:address (elf:sh sec)) (elf:size (elf:sh sec)))))    overlay-secs)))
     (find-if  #'(lambda (range) (and (>= (elf:value sym)  (car range))
-                                (<= (elf:value sym) (cadr range))))
+                                 (<= (elf:value sym) (cadr range))))
               addr-pairs)))
 
 (defparameter *rodata-start* 0)
@@ -111,7 +110,7 @@
 (defparameter *rodata-pred* #'rodata-sym?)
 
 (defun show-debug-module-symbols (modules &optional &key
-                                                      (prefix "") (threshold 0) (dump-file nil) (dump-symbol nil) (get-text-func *get-all-text-symbols*) (no-overlay nil) (sym-type nil) (no-rodata nil) (get-data-func *get-all-data-symbols* ) (rodata-pred #'rodata-sym?) (overlay-pred *overlay-pred*))
+                                                      (prefix "")  (dump-file nil) (dump-symbol nil) (get-text-func *get-all-text-symbols*)    (get-data-func *get-all-data-symbols* ) (rodata-pred #'rodata-sym?) (overlay-pred *overlay-pred*))
   "show  debug symbols info in dwarf .debug_info section
 threshod: optional, the threshold size to dump info
 dump-file: should also dump file info
@@ -132,7 +131,7 @@ path: path filter"
                       (module-overlay-datas (mapcar  (alexandria:curry #'sym-filter overlay-pred) datas))
                       (module-datas (mapcar (alexandria:curry #'sym-filter
                                                               #'(lambda (s) (and (not (funcall rodata-pred s))
-                                                                            (not (funcall overlay-pred s)))))
+                                                                             (not (funcall overlay-pred s)))))
                                             datas)))
                  (flet ((dump-file-info(f)
                           (let* ((name (car f))
@@ -140,39 +139,19 @@ path: path filter"
                                  (rodata-file (find-if #'(lambda (x) (string= (car f) (car x))) module-rodatas))
                                  (overlay-file (find-if #'(lambda (x) (string= (car f) (car x))) module-overlay-datas))
                                  (short-name (if (search prefix name) (subseq name  (length prefix)) name)))
-                            (flet ((merge-all (file-list)
-                                     (list (caar file-list)
-                                           (loop for f in file-list
-                                              nconc (cadr f))))
-                                   (should-dump? (sym)
-                                     (and
-                                      (if sym-type
-                                          (eql sym-type (elf:type sym)) t)
-                                      (if (and no-rodata
-                                               (eql :object (elf:type sym)))
-                                          (not (funcall rodata-pred sym))
-                                          t)
-                                      (if (and no-overlay
-                                               (eql :object (elf:type sym)))
-                                          (not (funcall overlay-pred sym))
-                                          t)
-                                      (> (elf:size sym) threshold))))
-                              (let ((sym-list (remove-if-not #'should-dump?
-                                                             (cadr (merge-all (list  f  data-file rodata-file overlay-file)))) ))
-                                (when sym-list
-                                  (format t "~&| ~a~{~T|~:D~}|~%" short-name
-                                          (mapcar #'sum-syms (list  f  data-file rodata-file overlay-file))))
-                                (when dump-symbol
-                                  (dump-symbol-list sym-list)))))))
+                            (format t "~&| ~a~{~T|~:D~}|~%" short-name
+                                    (mapcar #'sum-syms (list  f  data-file rodata-file overlay-file)))
+                            (when dump-symbol
+                              (mapcar #'dump-symbol-list
+                                      (mapcar #'cadr (list  f  data-file rodata-file overlay-file)))))))
                    (format t "~&|~18a~{~T|~:D~}|~%"  module
                            (mapcar #'(lambda (files)
                                        (loop for f in files sum (sum-syms f)))
                                    (list codes module-datas module-rodatas module-overlay-datas)))
-                   (mapc #'(lambda (f)
-                             (format t "~&~a ~d~%" (car f) (sum-syms f))) codes)
-                   (when dump-file (format t "~&**** module details:~%")
-                         (format t "~&| file name |code size|data size|rodata size| overlay-data-size|~%")
-                         (mapc #'dump-file-info   codes)))))))
+                   (when dump-file
+                     (format t "~&**** module details:~%")
+                     (format t "~&| file name |code size|data size|rodata size| overlay-data-size|~%")
+                     (mapc #'dump-file-info   codes)))))))
       (flet ((dump-module (m)
                (let* ((module-codes (remove-if-not  #'(lambda (f) (search m  (car f)))  all-code-files))
                       (datas (remove-if-not  #'(lambda (f) (search m  (car f)))  all-data-files)))
