@@ -399,6 +399,9 @@
                             (> pos start))))
            collect abbrev)))))
 
+
+
+
 (defun dw-get-compile-unit-debug-info (elf file offset sh)
   "get dwarf compile unit's  debug info in elf file,
   offset: is offset into .debug_info segment
@@ -438,7 +441,11 @@
 
 
 (defun dw-get-compile-unit-offset (elf file sh)
-  "get dwarf compile unit's  debug info in elf file, offset is offset into .debug_info segment"
+  "get dwarf compile unit's  debug info in elf file, offset is offset into .debug_info segment
+elf:  elf object
+file:   elf file
+sh: debug-info section
+==> list of compile unit's offset in file"
   (declare (optimize debug))
   (with-open-file (in file :element-type '(unsigned-byte 8))
     (with-slots (elf:offset elf:size) sh

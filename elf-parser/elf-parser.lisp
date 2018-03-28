@@ -38,59 +38,63 @@ first is the function name,  second is the function"
     (die-attr #'cadr)
   (die-children #'caddr))
 
-(defun get-all-file-symbols (tags)
+
+(defclass debug-symbol ()
+  ((name  :initarg :name
+          :accessor name)
+   (file-name :initarg :file-name
+              :accessor file-name  )))
+
+(defun find-debug-symbols (compile-unit)
+  "  find symbols in elf debug  info,   dw_tag_subprogram or  dw_tag_variable
+compile-unit:  the dwart info of compile unit,  list of  -tag val children-
+"
+  (declare (optimize debug))
+  (let* ((file-attrs (die-attr compile-unit) )
+         (file-name (with-dw-att-name (dw_at_name) file-attrs  dw_at_name))
+         (res nil))
+    (flet (( make-debug-symbol (die)
+             (with-dw-att-name ( dw_at_name)  (die-attr die)
+               (make-instance 'debug-symbol
+                              :name dw_at_name
+                              :file-name file-name))))
+      (dolist (entry (die-children compile-unit))
+        (case (die-tag entry)
+          (dw_tag_subprogram
+           (push (make-debug-symbol entry) res))
+          (dw_tag_variable
+           (push (make-debug-symbol entry) res))
+          (otherwise  nil)))
+      res)))
+
+(defparameter *all-symbols* nil)
+
+(defclass file-symbol ()
+  ((elf-sym  :initarg :elf-sym
+             :accessor  elf-sym)
+   (file-name :initarg :file-name
+              :accessor file-name  )))
+
+(defun get-all-debug-symbols (debug-info)
   "get all soruce file global symbols,
 tag: list of dwarf tag
 ==> \(file-name \( elf-symbol * \) \)"
-  (flet ((find-symbols (compile-unit  types symbols)
-           (declare (optimize debug))
-           (let ((res nil))
-             (dolist (entry (die-children compile-unit))
-               (when (find (die-tag entry) types)
-                 (ecase (die-tag entry)
-                   (dw_tag_subprogram
-                    (with-dw-att-name
-                        ( dw_at_name  DW_AT_high_pc  DW_AT_low_pc) (die-attr entry)
-                      (when dw_at_high_pc
-                        (let* ((public-sym (find dw_at_name  symbols
-                                                 :key #'elf:sym-name :test #'string=)))
-                          (if public-sym
-                              (push public-sym res)
-                              (let ((sym (make-instance 'elf::elf-sym-32)))
-                                (setf (elf:value sym) dw_at_low_pc )
-                                (setf (elf:size sym) (- dw_at_high_pc dw_at_low_pc) )
-                                (setf (elf:info sym) 2)
-                                (setf (elf:sym-name sym) dw_at_name)
-                                (if (>  (elf:size sym) 0)
-                                    (push sym res))))))))
-                   (dw_tag_variable
-                    (with-dw-att-name
-                        (dw_at_name DW_AT_location) (die-attr entry)
-                      (when (> (length dw_at_location) 2)
-                        (push (find dw_at_name  symbols
-                                    :key #'elf:sym-name :test #'string=)
-                              res))))
-                   (others nil))))
-             (with-dw-att-name (dw_at_name) (die-attr compile-unit)
-               (list dw_at_name (remove-if #'null  res )))))
-         (get-dw-all-files (debug-info)
-           (let ((all (loop for unit in debug-info
-                         collect (with-dw-att-name (dw_at_name)
-                                     (die-attr unit)
-                                   dw_at_name))))
-             (delete-duplicates all :test #'string=)))
-         (find-by-name (name infos)
-           (loop for unit in infos
-              when (string= name (car unit))
-              nconc (cadr unit))))
-    (let* ((symbols (elf:data (elf:named-section *elf* ".symtab")))
-           (syms (mapcar #'(lambda (compile-unit)
-                             (funcall #'find-symbols compile-unit tags symbols))
-                         *debug-infos*))
-           (all-files (stable-sort (get-dw-all-files *debug-infos*)  #'string< )))
-      (mapcar #'(lambda (f)
-                  (list f (find-by-name f syms)))
-              all-files))))
+  (let* ((symbols (elf:data (elf:named-section *elf* ".symtab")))
+         (debug-symbols  (loop for cu in debug-info
+                            nconc (find-debug-symbols cu)))
+         (res nil))
+    (dolist (sym symbols)
+      (let*  ( (sym-name (elf:sym-name sym))
+              (file   (find  sym-name debug-symbols
+                             :key #'name :test #'string=)))
+        (if file
+            (let ((fsym (make-instance 'file-symbol :elf-sym sym :file-name (file-name file))))
+              (push fsym res))
+            (let ((fsym (make-instance 'file-symbol :elf-sym sym :file-name "nofile")))
+              (push fsym res)))))
+    (setq *all-symbols*  res)
+    nil))
+
 
 (defun read-elf (file)
   "read elf file content
