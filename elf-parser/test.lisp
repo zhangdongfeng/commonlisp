@@ -63,10 +63,6 @@
       #'< :key #'car)))
   nil)
 
-
-(defparameter *overlay-pred* #'overlay-sym?)
-(defparameter *rodata-pred* #'rodata-sym?)
-
 (defun overlay-sym? (file-sym)
   (let* ((sym (elf-sym file-sym))
          (overlay-secs (remove-if-not
@@ -132,10 +128,11 @@
                                    &allow-other-keys)
   (flet ((dump-sym (file-sym)
            (let ((sym (elf-sym file-sym)))
-             (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
-                     (elf:value sym) (elf:size sym) (elf:type sym)
-                     (elf:binding sym)
-                     (elf:sym-name sym)))))
+             (unless   (zerop (elf:size sym))
+               (format t "~&    ~8x ~5d ~8a ~6a ~a~%"
+                       (elf:value sym) (elf:size sym) (elf:type sym)
+                       (elf:binding sym)
+                       (elf:sym-name sym))))))
     (loop for sym in sym-list
        do (cond
             ((and  (rodata-sym? sym) dump-rodata-symbol) (dump-sym sym))
@@ -184,8 +181,7 @@ prefix: path filter"
       (format t "~&|~18a~{~T|~:D~}|~%"  "others"
               (multiple-value-list (calc-size all-syms)))
       (if dump-file
-          (apply  #'dump-module-file all-syms rest))
-      )))
+          (apply  #'dump-module-file all-syms rest)))))
 
 
 
@@ -227,7 +223,6 @@ dump-symbol:  dump  symbols details in file
 
 #+(or)
 (sb-ext:save-lisp-and-die #p "elf-parser" :toplevel #'main :executable t)
-
 
 #+ (or)
 (show-debug-module-symbols '(

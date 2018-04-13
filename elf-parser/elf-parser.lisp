@@ -48,6 +48,7 @@ first is the function name,  second is the function"
 (defun find-debug-symbols (compile-unit)
   "  find symbols in elf debug  info,   dw_tag_subprogram or  dw_tag_variable
 compile-unit:  the dwart info of compile unit,  list of  -tag val children-
+==> list of  debug-symbol
 "
   (declare (optimize debug))
   (let* ((file-attrs (die-attr compile-unit) )
@@ -76,9 +77,9 @@ compile-unit:  the dwart info of compile unit,  list of  -tag val children-
               :accessor file-name  )))
 
 (defun get-all-debug-symbols (debug-info)
-  "get all soruce file global symbols,
-tag: list of dwarf tag
-==> \(file-name \( elf-symbol * \) \)"
+  "for each elf global symbol,  find its filename from debuginfo
+debug-info: list of  compile unit
+==> list of  file-symbols"
   (let* ((symbols (elf:data (elf:named-section *elf* ".symtab")))
          (debug-symbols  (loop for cu in debug-info
                             nconc (find-debug-symbols cu)))
@@ -92,8 +93,7 @@ tag: list of dwarf tag
               (push fsym res))
             (let ((fsym (make-instance 'file-symbol :elf-sym sym :file-name "nofile")))
               (push fsym res)))))
-    (setq *all-symbols*  res)
-    nil))
+    res))
 
 
 (defun read-elf (file)
@@ -101,5 +101,6 @@ tag: list of dwarf tag
 file: the full path of elf file"
   (setf *elf* (elf:read-elf file))
   (when (elf:named-section *elf* ".debug_info")
-    (setf *debug-infos* (dw-get-debug-info *elf*  file  (elf:sh (elf:named-section *elf* ".debug_info")))))
+    (setq *debug-infos* (dw-get-debug-info *elf*  file  (elf:sh (elf:named-section *elf* ".debug_info"))))
+    (setq *all-symbols*  (get-all-debug-symbols  *debug-infos*)))
   nil)
