@@ -1,5 +1,5 @@
 ;;;; package.lisp
 
-(defpackage #:http-client
+(defpackage #:myhttp
   (:use #:cl))
 

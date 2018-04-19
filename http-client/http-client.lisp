@@ -1,13 +1,9 @@
 ;;;; http-client.lisp
 
-(in-package #:http-client)
-
-
-
+(in-package #:myhttp)
 
 (defun remove-excess-whitespace (str)
   (cl-ppcre:regex-replace-all "\\s+" str " "))
-
 
 (defun slurp-stream (stream)
   "Quickly slurps the stream's contents into an array with fill pointer."
@@ -41,7 +37,7 @@
       (setf (fill-pointer buffer) position)
       buffer)))
 
-
+#+ (or)
 (let ((cookie-jar (make-instance 'drakma:cookie-jar)))
   (drakma:http-request "http://www.phpsecurepages.com/test/test.php"
                        :method :post
@@ -53,4 +49,4 @@
   (drakma:cookie-jar-cookies cookie-jar))
 
 
-(setf drakma:*header-stream* *standard-output*)
+;;(setf drakma:*header-stream* *standard-output*)
