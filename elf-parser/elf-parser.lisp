@@ -15,13 +15,6 @@
             at-name))
      ,@body))
 
-(defmacro with-dw-debug-entry ((tag val children) compile-unit &body body)
-  (alexandria:once-only (compile-unit)
-    `(let ((,tag (car ,compile-unit))
-           (,val (cadr ,compile-unit))
-           (,children (caddr ,compile-unit)))
-       ,@body)))
-
 (defmacro define-accessor (&rest methods)
   "define trivial accessor functions,
 methods: list function spec
@@ -85,9 +78,10 @@ debug-info: list of  compile unit
                             nconc (find-debug-symbols cu)))
          (res nil))
     (dolist (sym symbols)
-      (let*  ( (sym-name (elf:sym-name sym))
-              (file   (find  sym-name debug-symbols
-                             :key #'name :test #'string=)))
+      (let* ((sym-name (elf:sym-name sym))
+             (real-sym-name (register-groups-bind (first) ( "_*(.*)"  sym-name) first))
+             (file  (find  real-sym-name debug-symbols
+                           :key #'name :test #'string=) ))
         (if file
             (let ((fsym (make-instance 'file-symbol :elf-sym sym :file-name (file-name file))))
               (push fsym res))

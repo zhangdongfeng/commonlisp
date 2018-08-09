@@ -300,5 +300,4 @@ del-branch branch: generate shell scripts to delete repo branch")
     (setq command (curry #'command-interface repo))))
 
 #+(or)
-(make-command-interface  "
-/home/local/ACTIONS/zhangdf/gs700e/android/.repo/manifests/GS700E_android_5110.xml")
+(make-command-interface  "/home/local/ACTIONS/zhangdf/sdk/5206/ifly/android/.repo/manifests/TOYCLOUD__TAG_180211_BF2__TAG_AD500A_5110_160623.xml")

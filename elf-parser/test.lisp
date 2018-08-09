@@ -86,8 +86,10 @@
                *rodata-end* rodata-end)))
     (let ((rodata-start *rodata-start*)
           (rodata-end *rodata-end*))
-      (and (>= (elf:value sym) rodata-start)
-           (<= (elf:value sym) rodata-end)))))
+      (and
+       (eql :object (elf:type (elf-sym file-sym)))
+       (>= (elf:value sym) rodata-start)
+       (<= (elf:value sym) rodata-end)))))
 
 (defun code-sym? (file-sym)
   (eql :func (elf:type (elf-sym file-sym))))
