@@ -16,6 +16,25 @@
                         (elf:binding sym)
                         (elf:sym-name sym))))))))
 
+(defun show-static-symbols-test ()
+  "Show all symbols in ELF in a manner similar to readelf."
+  (let ((symtab (elf:named-section *elf* ".symtab")))
+    (dolist (tab (list  symtab))
+      (format t "~&~%Symbol table '~a' contains ~d entries:~%"
+              (elf:name tab) (length (elf:data tab)))
+      (format t "   Num:    Value  Size Type     Bind  Name~%")
+      (let ((symtab (stable-sort (copy-list (elf:data tab))
+                                 #'string<  :key #'(lambda (sym) (elf:sym-name sym)))))
+        (loop for sym in symtab  as i from 0
+           do (unless (zerop (elf:size sym))
+                (format t "~a~%"
+                        (elf:sym-name sym)
+                        )))
+        (loop for sym in symtab  as i from 0
+           do (unless (zerop (elf:size sym))
+                (format t "~a~%"
+                        (elf:size sym))))))))
+
 (defun show-file-layout ()
   "Show the layout of the elements of an elf file with binary offset."
   (let* ((elf *elf*)
@@ -25,18 +44,18 @@
                    (list offset
                          ;; an identifier for the section data
                          (cond
-                          ((numberp data) (elf:name (nth data (elf:sections elf))))
-                          ((stringp data) data)
-                          ((vectorp data) :filler)
-                          (t data))
+                           ((numberp data) (elf:name (nth data (elf:sections elf))))
+                           ((stringp data) data)
+                           ((vectorp data) :filler)
+                           (t data))
                          ;; the size in the file
                          (let ((sec (cond
-                                     ((numberp data)(nth data (elf:sections elf)))
-                                     ((stringp data) (elf:named-section elf data))
-                                     (t nil))))
+                                      ((numberp data)(nth data (elf:sections elf)))
+                                      ((stringp data) (elf:named-section elf data))
+                                      (t nil))))
                            (+ offset (if (and sec (equal :nobits (elf:type sec)))
                                          0
-                                       size)))))
+                                         size)))))
                   (elf:ordering elf))))
     (format t "~:{~&~x   ~18a ~x~}~%" (cons (list 'offset 'contents 'end)
                                             layout))))
