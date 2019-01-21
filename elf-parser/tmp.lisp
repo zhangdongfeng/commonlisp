@@ -115,3 +115,12 @@ aihora
                      "Peq"
                      "APP"
                      ) :dump-file t)
+
+
+
+(defun sal (old  inc)
+  (let*  ((new-base  (* old  0.95))
+          (inc-amount  (+ (* old 0.05) (* old inc))))
+    (format t "~%new-base ~d    addment  ~d  sum  ~d ~%"
+            new-base            (/ inc-amount (- 1 inc))
+            (+ new-base       (/ inc-amount (- 1 inc))))))
