@@ -142,25 +142,28 @@
           (rsyms c) resolved)
     c))
 
+(defun get-meta-component-name-from (dir-name metas)
+  (reduce #'(lambda (a b)
+              (if  (>  (length a) (length b))  a b))
+          (mapcar #'(lambda (m) (if (search m dir-name) m)) metas)))
+
 (defmethod component-get-depend-components ( (c component))
   (let* ((module-names (mapcar #'def-module (rsyms c)))
          (component-names (mapcar #'directory-namestring module-names) )
          (component-names (remove-duplicates component-names :test #'string=)))
     (if *METAS*
         (remove-duplicates
-         (mapcar #'(lambda (c)
-                     (mapcan #'(lambda (m) (if (search m c) m)) *METAS*))
+         (mapcar #'(lambda (c) (get-meta-component-name-from c *METAS*))
                  component-names)
          :test #'string=)
         component-names)))
 
 (defun get-module-shortname (full-name)
   (if *METAS*
-      (mapcan #'(lambda (m)
-                  (let ((start (search m full-name)))
-                    (if start
-                        (subseq  full-name start))))
-              *METAS*)
+      (let* ((meta-name (get-meta-component-name-from full-name *METAS*))
+             (start (search meta-name full-name)))
+        (if start
+            (subseq  full-name start)))
       (let* ((mod-dir (reverse (pathname-directory full-name)))
              (mod-name (file-namestring full-name))
              (mod-dir (if (cadr mod-dir)
@@ -211,7 +214,8 @@
          (metas (read-file-into-lines meta-file-path))
          (metas (remove-duplicates metas  :test #'string=))
          (meta-comonents (get-meta-component-from-objs metas objs))
-         (t-syms  (reduce #'append (mapcar #'tsyms meta-comonents))))
+         (t-syms  (reduce #'append (mapcar #'tsyms meta-comonents)))
+         (metas (mapcar #'directory-namestring metas)))
     (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) meta-comonents)
     (let ((*METAS* metas))
       (dolist (c meta-comonents)
