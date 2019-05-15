@@ -5,8 +5,8 @@
     (loop for line = (read-line f  nil nil)
        while  line  collect line)))
 
-
 (defparameter *nm-cmd* "/opt/mips-2014.11/bin/mips-sde-elf-nm ")
+(defparameter *METAS* nil)
 
 (defclass obj-symbol ()
   ((obj-name  :initarg :obj-name
@@ -68,14 +68,11 @@
                        objs))
          (objs-nms (trivial-shell:shell-command
                     (concatenate 'string *nm-cmd* objs)))
-         (obj-syms  (get-obj-syms-from-nm objs-nms))
+         (obj-nm-list (split (create-scanner "^\\s*$" :multi-line-mode t) objs-nms))
+         (obj-syms (mapcar #'parse-obj-symbol-from-string obj-nm-list))
+         (obj-syms (remove-if-not #'identity obj-syms))
          (lib-syms (if libs (mapcan #'get-obj-syms-from-lib libs))))
     (append obj-syms lib-syms)))
-
-(defun get-obj-syms-from-nm (nm)
-  (let* ((obj-nm (split (create-scanner "^\\s*$" :multi-line-mode t) nm))
-         (objs (mapcar #'parse-obj-symbol-from-string obj-nm)))
-    (remove-if-not #'identity objs)))
 
 (defclass component ()
   ((name  :initarg :name
@@ -125,7 +122,6 @@
          (usym-new (remove-if #'(lambda (s)
                                   (find (car s) tsym :test #'string= :key #'car))
                               usym)))
-
     (setf (tsyms c) tsym
           (usyms c) usym-new)))
 
@@ -148,29 +144,29 @@
 
 (defmethod component-get-depend-components ( (c component))
   (let* ((module-names (mapcar #'def-module (rsyms c)))
-         (component-names (mapcar #'directory-namestring module-names) ))
-    (remove-duplicates component-names
-                       :test #'string=)))
-
-(defmethod component-get-modules ( (c component))
-  (let ((module-names (mapcar #'ref-module (rsyms c))))
-    (remove-duplicates module-names :test #'string=)))
-
-(defmethod component-get-depend-components-of ( (c component) ref-module)
-  (declare (optimize debug))
-  (let* ((syms (rsyms c))
-         (syms (remove-if-not  #'(lambda (s) (string= ref-module (ref-module s))) syms))
-         (modules (mapcar #'def-module syms))
-         (modules (mapcar #'directory-namestring modules)))
-    (remove-duplicates  modules :test #'string=)))
+         (component-names (mapcar #'directory-namestring module-names) )
+         (component-names (remove-duplicates component-names :test #'string=)))
+    (if *METAS*
+        (remove-duplicates
+         (mapcar #'(lambda (c)
+                     (mapcan #'(lambda (m) (if (search m c) m)) *METAS*))
+                 component-names)
+         :test #'string=)
+        component-names)))
 
 (defun get-module-shortname (full-name)
-  (let* ((mod-dir (reverse (pathname-directory full-name)))
-         (mod-name (file-namestring full-name))
-         (mod-dir (if (cadr mod-dir)
-                      (concatenate 'string  (cadr mod-dir) "/" (car mod-dir))
-                      (car mod-dir))))
-    (concatenate 'string mod-dir "/" mod-name)))
+  (if *METAS*
+      (mapcan #'(lambda (m)
+                  (let ((start (search m full-name)))
+                    (if start
+                        (subseq  full-name start))))
+              *METAS*)
+      (let* ((mod-dir (reverse (pathname-directory full-name)))
+             (mod-name (file-namestring full-name))
+             (mod-dir (if (cadr mod-dir)
+                          (concatenate 'string  (cadr mod-dir) "/" (car mod-dir))
+                          (car mod-dir))))
+        (concatenate 'string mod-dir "/" mod-name))))
 
 (defmethod component-dump ( (c component))
   (declare (optimize debug))
@@ -191,44 +187,35 @@
       (dolist (u usyms)
         (format t  "~a  ~%"  (car u))))))
 
-(defun analyse-module-dependency (components)
-  (declare (optimize debug))
-  (let ((t-syms  (reduce #'append (mapcar #'tsyms components))))
-    (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) components)))
-
-(defun get-component-dependency  (path)
-  (let* ((files (read-file-into-string path ))
+(defun show-component-dependency (obj-files-path)
+  (let* ((files (read-file-into-string obj-files-path ))
          (objs (get-objs-syms-from-files files))
-         (components (get-component-from-objs objs)))
-    (analyse-module-dependency components)))
+         (components (get-component-from-objs objs))
+         (t-syms  (reduce #'append (mapcar #'tsyms components))))
+    (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) components)
+    (dolist (c components)
+      (component-dump c))    ))
 
-(defun show-component-dependency (path)
-  (let ((dep (get-component-dependency path)))
-    (dolist (c dep)
-      (component-dump c))))
+(defun get-meta-component-from-objs (metas objs)
+  (let (comp)
+    (setq comp
+          (mapcar  #'(lambda (m)
+                       (make-instance 'component :name m :objs
+                                      (remove-if-not #'(lambda (obj) (search m (obj-name obj)))  objs)))
+                   metas))
+    (mapc #'component-merge-objs  comp)))
 
-
-#+ (or)
-(defun show-component-dependency (dep)
-  (dolist (c dep)
-    (let* ( (c-name (name c))
-           (usyms (usyms c))
-            (syms (rsyms c))
-            (depend-components (component-get-depend-components c))
-            (modules (component-get-modules c)))
-      (format t  "~a  ~%" c-name)
-      (format t  "~%depends modules: ~d  unresolved symbols: ~d ~%"
-              (length depend-components) (length usyms))
-      (format t  "~{~a~%~} ~%" (mapcar #'get-module-shortname depend-components))
-      ;;(format t  "~{~a~%~} ~%" (mapcar #'get-module-shortname depend-modules))
-      (dolist (m modules )
-        (format t  "~a  ~%~{~a~%~} ~%" (file-namestring m)
-                (mapcar #'get-module-shortname (component-get-depend-modules-of c m)) ))))
-  (dolist (c dep)
-    (component-dump c)))
-
-
-
+(defun show-meta-component-dependency (obj-files-path  meta-file-path)
+  (let* ((files (read-file-into-string obj-files-path ))
+         (objs (get-objs-syms-from-files files))
+         (metas (read-file-into-lines meta-file-path))
+         (metas (remove-duplicates metas  :test #'string=))
+         (meta-comonents (get-meta-component-from-objs metas objs))
+         (t-syms  (reduce #'append (mapcar #'tsyms meta-comonents))))
+    (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) meta-comonents)
+    (let ((*METAS* metas))
+      (dolist (c meta-comonents)
+        (component-dump c)))))
 
 (defun main-nm ()
   (if (= (length sb-ext:*posix-argv*) 2)
