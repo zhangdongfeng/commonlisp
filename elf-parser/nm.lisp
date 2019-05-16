@@ -1,5 +1,4 @@
 (in-package :elf-parser)
-
 (defun read-file-into-lines (path)
   (with-open-file (f path )
     (loop for line = (read-line f  nil nil)
@@ -125,7 +124,6 @@
     (setf (tsyms c) tsym
           (usyms c) usym-new)))
 
-
 (defmethod component-resolve-syms ( (c component)  t-syms)
   (declare (optimize debug))
   (let ((u-syms (usyms c))
@@ -138,14 +136,14 @@
             (push (make-instance 'resolved-symbol
                                  :name (car usym) :ref-module (cdr usym) :def-module  (cdr found)) resolved)
             (push usym unresolved))))
-    (setf (usyms c) unresolved
+    (setf (usyms c) (remove-duplicates  unresolved  :test #'string= :key #'car)
           (rsyms c) resolved)
     c))
 
 (defun get-meta-component-name-from (dir-name metas)
   (reduce #'(lambda (a b)
               (if  (>  (length a) (length b))  a b))
-          (mapcar #'(lambda (m) (if (search m dir-name) m)) metas)))
+          (mapcar #'(lambda (m) (if (search m dir-name) m "others")) metas)))
 
 (defmethod component-get-depend-components ( (c component))
   (let* ((module-names (mapcar #'def-module (rsyms c)))
@@ -163,7 +161,8 @@
       (let* ((meta-name (get-meta-component-name-from full-name *METAS*))
              (start (search meta-name full-name)))
         (if start
-            (subseq  full-name start)))
+            (subseq  full-name start)
+            (subseq  full-name 0)))
       (let* ((mod-dir (reverse (pathname-directory full-name)))
              (mod-name (file-namestring full-name))
              (mod-dir (if (cadr mod-dir)
@@ -200,23 +199,36 @@
       (component-dump c))    ))
 
 (defun get-meta-component-from-objs (metas objs)
-  (let (comp)
+  (let ((comp nil)
+        ( rem-objs objs))
     (setq comp
           (mapcar  #'(lambda (m)
-                       (make-instance 'component :name m :objs
-                                      (remove-if-not #'(lambda (obj) (search m (obj-name obj)))  objs)))
+                       (let* ((match-func #'(lambda (obj) (search m (obj-name obj))))
+                              (match-objs (remove-if-not  match-func  rem-objs) ))
+                         (setq rem-objs (remove-if match-func  rem-objs))
+                         (make-instance 'component :name m :objs match-objs)))
                    metas))
+    (push (make-instance 'component :name "others" :objs rem-objs) comp)
     (mapc #'component-merge-objs  comp)))
+
+(defun get-path-from-objs (objs)
+  (declare (optimize debug))
+  (let* ((non-empty-objs (remove-if-not #'(lambda (o) (or (t-sym o) (u-sym o))) objs))
+         (paths (mapcar #'(lambda (f) (directory-namestring (obj-name f)))
+                        non-empty-objs)))
+    (stable-sort (remove-duplicates paths  :test #'string=)  #'string<)))
 
 (defun show-meta-component-dependency (obj-files-path  meta-file-path)
   (let* ((files (read-file-into-string obj-files-path ))
          (objs (get-objs-syms-from-files files))
+         (obj-paths (get-path-from-objs objs))
          (metas (read-file-into-lines meta-file-path))
          (metas (remove-duplicates metas  :test #'string=))
          (meta-comonents (get-meta-component-from-objs metas objs))
          (t-syms  (reduce #'append (mapcar #'tsyms meta-comonents)))
          (metas (mapcar #'directory-namestring metas)))
     (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) meta-comonents)
+    (format t  "~{~a~%~} ~%" obj-paths)
     (let ((*METAS* metas))
       (dolist (c meta-comonents)
         (component-dump c)))))
