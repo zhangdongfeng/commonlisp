@@ -177,17 +177,17 @@
           (syms (rsyms c))
           (depend-components (component-get-depend-components c)))
     (format t  "~%~a~%" c-name)
-    (format t  "depends components: ~d  unresolved symbols: ~d ~%"
+    (format t  "depends components: ~d  unresolved symbols: ~d~%"
             (length depend-components) (length usyms))
     (format t  "~{~a~%~} ~%" (mapcar #'get-module-shortname depend-components))
     (format t  "~%component  symbols:~%")
     (dolist (s syms)
-      (format t  "~a/~a  ==>  ~a ~%" (name s)  (file-namestring (ref-module s))
+      (format t  "~a@~a  ==>  ~a~%" (name s)  (get-module-shortname (ref-module s))
               (get-module-shortname (def-module s))))
     (progn
       (format t  "~%component  undefined symbols:~%")
       (dolist (u usyms)
-        (format t  "~a  ~%"  (car u))))))
+        (format t  "~a~%"  (car u))))))
 
 (defun show-component-dependency (obj-files-path)
   (let* ((files (read-file-into-string obj-files-path ))
@@ -196,7 +196,7 @@
          (t-syms  (reduce #'append (mapcar #'tsyms components))))
     (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) components)
     (dolist (c components)
-      (component-dump c))    ))
+      (component-dump c))))
 
 (defun get-meta-component-from-objs (metas objs)
   (let ((comp nil)
@@ -228,7 +228,8 @@
          (t-syms  (reduce #'append (mapcar #'tsyms meta-comonents)))
          (metas (mapcar #'directory-namestring metas)))
     (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) meta-comonents)
-    (format t  "~{~a~%~} ~%" obj-paths)
+    (format t  "all modules: ~%~{~a~%~} ~%" obj-paths)
+    (format t  "components: ~%~{~a~%~} ~%" metas)
     (let ((*METAS* metas))
       (dolist (c meta-comonents)
         (component-dump c)))))
@@ -240,4 +241,4 @@
         (show-component-dependency file))))
 
 #+(or)
-(sb-ext:save-lisp-and-die #p "show-component-dependency" :toplevel #'main-nm :executable t)
+(sb-ext:save-lisp-and-die #p "show-component-dependency" :toplevel #'main-nm :executable)
