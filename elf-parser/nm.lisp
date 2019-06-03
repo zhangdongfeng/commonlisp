@@ -6,6 +6,9 @@
 
 (defparameter *nm-cmd* "/opt/mips-2014.11/bin/mips-sde-elf-nm ")
 (defparameter *METAS* nil)
+(defparameter *ALL-USED-SYMS* nil)
+(defparameter  *ALL-RESOLVED-SYMS* nil)
+(defparameter *META-COMPONENTS* nil)
 
 (defclass obj-symbol ()
   ((obj-name  :initarg :obj-name
@@ -82,6 +85,8 @@
            :accessor  usyms)
    (rsyms  :initarg :rsyms
            :accessor  rsyms)
+   (isyms  :initarg :isyms
+           :accessor  isyms)
    (tsyms  :initarg :tsyms
            :accessor  tsyms)))
 
@@ -118,10 +123,13 @@
   (let* ((objs  (objs c))
          (usym (reduce #'append (loop for i in objs collect (u-sym i))))
          (tsym (reduce #'append (loop for i in objs collect  (t-sym i))))
-         (usym-new (remove-if #'(lambda (s)
-                                  (find (car s) tsym :test #'string= :key #'car))
-                              usym)))
+         (find-internal-syms-func #'(lambda (s)
+                                      (find (car s) tsym :test #'string= :key #'car)))
+         (usym-new (remove-if find-internal-syms-func usym))
+         (internal-sym (remove-if-not find-internal-syms-func usym))
+         (internal-sym (mapcar find-internal-syms-func internal-sym)))
     (setf (tsyms c) tsym
+          (isyms c) internal-sym
           (usyms c) usym-new)))
 
 (defmethod component-resolve-syms ( (c component)  t-syms)
@@ -140,10 +148,10 @@
           (rsyms c) resolved)
     c))
 
-(defun get-meta-component-name-from (dir-name metas)
-  (reduce #'(lambda (a b)
-              (if  (>  (length a) (length b))  a b))
-          (mapcar #'(lambda (m) (if (search m dir-name) m "others")) metas)))
+(defun get-meta-component-name-from (dir-name)
+  (let* ((matches (mapcar #'(lambda (m) (if (search m dir-name) m nil))  *METAS*))
+         (path  (reduce #'(lambda (a b)  (if  (>  (length a) (length b))  a b))  matches)))
+    (if path  path dir-name)))
 
 (defmethod component-get-depend-components ( (c component))
   (let* ((module-names (mapcar #'def-module (rsyms c)))
@@ -151,14 +159,14 @@
          (component-names (remove-duplicates component-names :test #'string=)))
     (if *METAS*
         (remove-duplicates
-         (mapcar #'(lambda (c) (get-meta-component-name-from c *METAS*))
+         (mapcar #'(lambda (c) (get-meta-component-name-from c))
                  component-names)
          :test #'string=)
         component-names)))
 
 (defun get-module-shortname (full-name)
   (if *METAS*
-      (let* ((meta-name (get-meta-component-name-from full-name *METAS*))
+      (let* ((meta-name (get-meta-component-name-from full-name))
              (start (search meta-name full-name)))
         (if start
             (subseq  full-name start)
@@ -169,25 +177,6 @@
                           (concatenate 'string  (cadr mod-dir) "/" (car mod-dir))
                           (car mod-dir))))
         (concatenate 'string mod-dir "/" mod-name))))
-
-(defmethod component-dump ( (c component))
-  (declare (optimize debug))
-  (let* ( (c-name (name c))
-         (usyms (usyms c))
-          (syms (rsyms c))
-          (depend-components (component-get-depend-components c)))
-    (format t  "~%~a~%" c-name)
-    (format t  "depends components: ~d  unresolved symbols: ~d~%"
-            (length depend-components) (length usyms))
-    (format t  "~{~a~%~} ~%" (mapcar #'get-module-shortname depend-components))
-    (format t  "~%component  symbols:~%")
-    (dolist (s syms)
-      (format t  "~a@~a  ==>  ~a~%" (name s)  (get-module-shortname (ref-module s))
-              (get-module-shortname (def-module s))))
-    (progn
-      (format t  "~%component  undefined symbols:~%")
-      (dolist (u usyms)
-        (format t  "~a~%"  (car u))))))
 
 (defun show-component-dependency (obj-files-path)
   (let* ((files (read-file-into-string obj-files-path ))
@@ -218,6 +207,75 @@
                         non-empty-objs)))
     (stable-sort (remove-duplicates paths  :test #'string=)  #'string<)))
 
+(defun get-ref-components-by (sym)
+  (let* ((coms (remove-if-not   #'(lambda (r) (string= sym  (name r)))
+                                *ALL-RESOLVED-SYMS*))
+         (coms (remove-duplicates coms :key  #'ref-module :test #'string=))
+         (paths (mapcar #'ref-module coms)))
+    ;;(format  t  "~a ~{~a ~%~}~% "  sym paths)
+    (remove-duplicates (mapcar  #'get-meta-component-name-from  paths)  :test #'string= )))
+
+
+(defun get-required-symbols-from (syms)
+  (let* ((syms1 (remove-duplicates syms :key #'(lambda (s) (name s)) :test #'string=))
+         (tmp syms1)
+         (res nil))
+    (dolist (m *METAS*)
+      (push  (remove-if-not #'(lambda (s) (search m (def-module s)))  tmp)   res)
+      (setq tmp  (remove-if #'(lambda (s) (search m (def-module s)))  tmp)))
+    (reverse res)))
+
+
+(defmethod component-dump ( (c component))
+  (declare (optimize debug))
+  (let* ( (c-name (name c))
+         (prefix-size (length c-name))
+          (usyms (usyms c))
+          (tsyms (tsyms c))
+          (isyms (isyms c))
+          (syms (rsyms c))
+          (syms1 (get-required-symbols-from syms))
+          (used-sym-func #'(lambda (r) (find  r *ALL-USED-SYMS* :test #'(lambda (a b)
+                                                                     (string= (car a ) (name b))))))
+          (used-syms (remove-if-not used-sym-func tsyms))
+          (unused-syms (remove-if used-sym-func tsyms))
+          (unused-syms (remove-if
+                        #'(lambda (s) (find (car s) isyms :test #'string= :key #'car))
+                        unused-syms))
+          (depend-components (component-get-depend-components c)))
+    (format t  "~&~%~a~%" c-name)
+    (format t  "depends components: ~d  unresolved symbols: ~d~%"
+            (length depend-components) (length usyms))
+    (format t  "~{~a~%~} ~%" (mapcar #'get-module-shortname depend-components))
+    (format t  "~%component  symbols:~%")
+    (dolist (s syms)
+      (format t  "~a@~a  ==>  ~a~%" (name s)  (get-module-shortname (ref-module s))
+              (get-module-shortname (def-module s))))
+    (format t  "~%component  provided symbols:~%")
+    (let (tmp)
+      (dolist (u used-syms)
+        (let* ((short-name (get-module-shortname (cdr u)))
+               (module-name  (subseq  short-name  (min prefix-size (length short-name) ) )))
+          (if (string= tmp module-name) nil
+              (progn
+                (setq tmp module-name)
+                (format t "~a~%" module-name)))
+          (format t  "~&~a       ~{~a ~}~%"  (car u)  (get-ref-components-by (car u))))))
+    (format t  "~%component  required symbols:")
+    (dolist (s syms1)
+      (if s (format t  "~&~a:"  (get-meta-component-name-from (def-module (car s)))))
+      (dolist (s1 s)
+        (format t  "~a  " (name s1))))
+    (format t  "~&~%component  internal used symbols:~%")
+    (dolist (u isyms)
+      (format t  "~a     ~a~%"  (car u) (get-module-shortname (cdr u))))
+    (format t  "~%component  not used symbols, can be static or delete:~%")
+    (dolist (u unused-syms)
+      (format t  "~a     ~a~%"  (car u) (get-module-shortname (cdr u))))
+    (format t  "~%component  undefined symbols:~%")
+    (dolist (u usyms)
+      (format t  "~a "  (car u))))  )
+
 (defun show-meta-component-dependency (obj-files-path  meta-file-path)
   (let* ((files (read-file-into-string obj-files-path ))
          (objs (get-objs-syms-from-files files))
@@ -230,15 +288,24 @@
     (mapcar #'(lambda (c) (component-resolve-syms c t-syms)) meta-comonents)
     (format t  "all modules: ~%~{~a~%~} ~%" obj-paths)
     (format t  "components: ~%~{~a~%~} ~%" metas)
-    (let ((*METAS* metas))
+    (let* ((*METAS* metas)
+           (*ALL-RESOLVED-SYMS* (reduce #'append (mapcar #'rsyms meta-comonents)))
+           (*ALL-USED-SYMS* (remove-duplicates *ALL-RESOLVED-SYMS*  :key #'(lambda (x) (name x)) :test  #'string= )))
       (dolist (c meta-comonents)
-        (component-dump c)))))
+        (component-dump c)))
+    (setq *METAS* metas)
+    (setq *ALL-RESOLVED-SYMS* (reduce #'append (mapcar #'rsyms meta-comonents)))
+    (setq *ALL-USED-SYMS* (remove-duplicates *ALL-RESOLVED-SYMS*  :key #'(lambda (x) (name x)) :test  #'string= ))
+    (setq *META-COMPONENTS*  meta-comonents)
+    nil))
 
-(defun main-nm ()
-  (if (= (length sb-ext:*posix-argv*) 2)
-      (let*  ((file  (nth 1 sb-ext:*posix-argv*)))
-        (format t "~a" file)
-        (show-component-dependency file))))
+
+(defun component-main ()
+  (if (= (length sb-ext:*posix-argv*) 3)
+      (let*  ((objs-file  (nth 1 sb-ext:*posix-argv*))
+              (metas-file  (nth 2 sb-ext:*posix-argv*)))
+        (show-meta-component-dependency objs-file metas-file))
+      (format t "usage:dump-component   objs-input-file  componet-input-file ")))
 
 #+(or)
-(sb-ext:save-lisp-and-die #p "show-component-dependency" :toplevel #'main-nm :executable)
+(sb-ext:save-lisp-and-die #p "dump-component" :toplevel #'component-main :executable t )
