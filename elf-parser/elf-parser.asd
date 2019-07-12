@@ -18,6 +18,7 @@
                (:file "regex-parser")
                (:file "keilc251")
                (:file "nm")
+               (:file "printk")
                )
   )
 
