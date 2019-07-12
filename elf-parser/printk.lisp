@@ -33,9 +33,23 @@
          (strs (mapcar #'parse-strs-from-file files)))
     (reduce  #'append strs)))
 
+(defclass rodata-str ()
+  ((name  :initarg :name
+          :accessor  name)
+   (size  :initarg :size
+          :accessor  size)
+   (str :initarg :str
+        :accessor str)))
+
+(defun str-to-number (str)
+  
+  )
+
 (defun get-strs-from-mapfile (map-file)
-  (let* ((file-str (read-file-into-string  map-file)))
-    (all-matches-as-strings "\\.rodata\\.[A-Za-z0-9_]+\\n? *0x[0-9a-f]+ +0x[0-9a-f]+" file-str )))
+  (let* ((file-str (read-file-into-string  map-file))
+         (rodata-regex "(\\.rodata\\.[\\.A-Za-z0-9_]+)\\n? *0x([0-9a-f])+ +0x([0-9a-f]+)")
+         (all-rodata (all-matches-as-strings rodata-regex  file-str )))))
+
 
 (defun show-printk-strs (cfiles-path  map-file-path)
   (get-strs-from-cfiles (read-file-into-string  cfiles-path))
