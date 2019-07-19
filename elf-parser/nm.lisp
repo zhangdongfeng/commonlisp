@@ -191,12 +191,13 @@
   (let ((comp nil)
         ( rem-objs objs))
     (setq comp
-          (mapcar  #'(lambda (m)
-                       (let* ((match-func #'(lambda (obj) (search m (obj-name obj))))
-                              (match-objs (remove-if-not  match-func  rem-objs) ))
-                         (setq rem-objs (remove-if match-func  rem-objs))
-                         (make-instance 'component :name m :objs match-objs)))
-                   metas))
+          (mapcar
+           #'(lambda (m)
+               (let* ((match-func #'(lambda (obj) (search m (obj-name obj))))
+                      (match-objs (remove-if-not  match-func  rem-objs) ))
+                 (setq rem-objs (remove-if match-func  rem-objs))
+                 (make-instance 'component :name m :objs match-objs)))
+           metas))
     (push (make-instance 'component :name "others" :objs rem-objs) comp)
     (mapc #'component-merge-objs  comp)))
 
