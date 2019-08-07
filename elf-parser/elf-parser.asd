@@ -8,7 +8,9 @@
                #:cl-ppcre
                #:metabang-bind
                #:com.gigamonkeys.binary-data
-               #:elf)
+               #:elf
+               #:cl-lex
+               #:yacc)
   :serial t
   :components ((:file "package")
                (:file "shell")
@@ -19,6 +21,7 @@
                (:file "keilc251")
                (:file "nm")
                (:file "printk")
+               (:file "kconfig")
                )
   )
 
